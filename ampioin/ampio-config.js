@@ -325,7 +325,12 @@ module.exports = function(RED) {
         const DEVICE_LIST_REQUEST = 'device_api/to/list';
         const DEVICE_LIST_RESPONSE = 'device_api/from/list';
         const DISCOVERY_TIME = 2000;
+        // retained states of one subscription are complete when none arrived for QUIET_TIME
+        const QUIET_TIME = 300;
+        const STATES_TIME = 3000;
         // done(err, devices); err.status carries an HTTP status for the editor endpoint
+        // Steps run one after another: the broker drops messages to a client flooded with retained states,
+        // so the get_devices answer is awaited first and each state subscription gets its burst alone.
         node.discoverDevices = function(done){
             // Separate client, so retained states re-sent on subscribe do not reach IN nodes
             const client = node.createClient(Object.assign({}, node.options, {
@@ -342,14 +347,19 @@ module.exports = function(RED) {
             let rpcDevices = null;
             let apiDevices = null;
             let apiWaitOver = false;
-            let collecting = true;
+            let statesStarted = false;
             let finished = false;
+            let quietTimer = null;
+            let stepTimer = null;
+            let onQuiet = null;
             function finish(status, body){
                 if(finished){
                     return;
                 }
                 finished = true;
                 clearTimeout(timer);
+                clearTimeout(quietTimer);
+                clearTimeout(stepTimer);
                 client.end(true);
                 if(status === 200){
                     done(null, body);
@@ -359,9 +369,40 @@ module.exports = function(RED) {
                     done(err);
                 }
             }
+            // subscribe, then call next once retained states stop arriving (or after STATES_TIME)
+            function collect(topic, next){
+                if(finished){
+                    return;
+                }
+                onQuiet = function(){
+                    onQuiet = null;
+                    clearTimeout(quietTimer);
+                    clearTimeout(stepTimer);
+                    next();
+                };
+                client.subscribe(topic, function(err){
+                    if(err){
+                        finish(500, "Subscribe failed: " + err.message);
+                        return;
+                    }
+                    quietTimer = setTimeout(onQuiet, QUIET_TIME);
+                    stepTimer = setTimeout(function(){ onQuiet && onQuiet(); }, STATES_TIME);
+                });
+            }
+            function collectStates(){
+                if(statesStarted){
+                    return;
+                }
+                statesStarted = true;
+                collect(STATE_TOPICS, function(){
+                    collect(LEGACY_STATE_TOPICS, function(){
+                        finish(200, au.discover_devices(rpcDevices || [], topics, legacyTopics, apiDevices));
+                    });
+                });
+            }
             function tryFinish(){
-                if(rpcDevices && (apiDevices || apiWaitOver) && !collecting){
-                    finish(200, au.discover_devices(rpcDevices, topics, legacyTopics, apiDevices));
+                if(rpcDevices && (apiDevices || apiWaitOver)){
+                    collectStates();
                 }
             }
             function parse(message, what){
@@ -388,27 +429,33 @@ module.exports = function(RED) {
                 }
                 else if(message.length > 0){
                     (topic.startsWith('ampio/') ? legacyTopics : topics).push(topic);
+                    if(onQuiet){
+                        clearTimeout(quietTimer);
+                        quietTimer = setTimeout(onQuiet, QUIET_TIME);
+                    }
                 }
             });
             client.on('error', function(err){
                 finish(502, "MQTT error: " + err.message);
             });
             client.on('connect', function(){
-                client.subscribe([rpcResponse, DEVICE_LIST_RESPONSE, STATE_TOPICS, LEGACY_STATE_TOPICS], function(err){
+                client.subscribe([rpcResponse, DEVICE_LIST_RESPONSE], function(err){
                     if(err){
                         finish(500, "Subscribe failed: " + err.message);
                         return;
                     }
-                    // retained states arrive right after subscribe, give them a moment
-                    setTimeout(function(){
-                        collecting = false;
-                        tryFinish();
-                    }, 500);
                     // legacy names are optional, do not wait for them longer than DISCOVERY_TIME
                     setTimeout(function(){
                         apiWaitOver = true;
                         tryFinish();
                     }, DISCOVERY_TIME);
+                    // no get_devices answer: carry on with retained states only
+                    setTimeout(function(){
+                        if(!rpcDevices && !finished){
+                            node.warn("get_devices timeout, devices discovered without names");
+                            collectStates();
+                        }
+                    }, DISCOVERY_TIME * 2);
                     client.publish(rpcRequest, JSON.stringify({jsonrpc: "2.0", method: "get_devices", params: {}, id: rpcId}));
                     client.publish(DEVICE_LIST_REQUEST, '');
                 });
@@ -418,10 +465,8 @@ module.exports = function(RED) {
                     finish(504, "MQTT broker not reachable");
                     return;
                 }
-                // no get_devices answer, fall back to retained states only
-                node.warn("get_devices timeout, devices discovered without names");
-                finish(200, au.discover_devices([], topics, legacyTopics, apiDevices));
-            }, DISCOVERY_TIME * 2);
+                finish(200, au.discover_devices(rpcDevices || [], topics, legacyTopics, apiDevices));
+            }, DISCOVERY_TIME * 2 + STATES_TIME * 2 + 1000);
         };
 
         RED.httpAdmin.get('/ampio-v2/'+node_id+'/devices/v1/list', RED.auth.needsPermission('ampiov2.read'),function(req,res){
