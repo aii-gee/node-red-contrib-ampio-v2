@@ -5,7 +5,7 @@ name: Publish to npm
 #
 # Uses npm trusted publishing (OIDC), no npm token is stored in GitHub.
 # npmjs.com -> package settings -> Trusted publisher -> GitHub Actions:
-#   organization/user: agpl, repository: node-red-contrib-ampio-v2,
+#   organization/user: aii-gee, repository: node-red-contrib-ampio-v2,
 #   workflow filename: publish.yml, environment: npm
 #
 # The version is staged, not published: approve it with 2FA to make it public:

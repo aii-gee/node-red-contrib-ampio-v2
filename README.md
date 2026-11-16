@@ -1,5 +1,5 @@
 ## Ampio Node-RED module (v2)
-[![CI](https://github.com/agpl/node-red-contrib-ampio-v2/actions/workflows/ci.yml/badge.svg)](https://github.com/agpl/node-red-contrib-ampio-v2/actions/workflows/ci.yml)
+[![CI](https://github.com/aii-gee/node-red-contrib-ampio-v2/actions/workflows/ci.yml/badge.svg)](https://github.com/aii-gee/node-red-contrib-ampio-v2/actions/workflows/ci.yml)
 
 Ampio add-on made to use Ampio Smart Home devices in Node-RED, using the `device/v1` MQTT API.
 
@@ -10,7 +10,7 @@ This package is a fork of [node-red-contrib-ampio](https://www.npmjs.com/package
 (source: [github.com/ampio-com/node-red-contrib-ampio](https://github.com/ampio-com/node-red-contrib-ampio)), adapted to the new Ampio MQTT API.
 It keeps the original ISC license and copyright, see [LICENSE](LICENSE), and is maintained separately from the original package.
 
-Source of this fork: [github.com/agpl/node-red-contrib-ampio-v2](https://github.com/agpl/node-red-contrib-ampio-v2).
+Source of this fork: [github.com/aii-gee/node-red-contrib-ampio-v2](https://github.com/aii-gee/node-red-contrib-ampio-v2).
 
 Leaf type definitions (`ampioin/db/leafdefs.json`) are generated from the Ampio Designer web application served by the Ampio server, see [Leaf definitions](#leaf-definitions).
 
@@ -62,7 +62,7 @@ git push --follow-tags
 Publishing uses [npm trusted publishing](https://docs.npmjs.com/trusted-publishers) (OIDC), no npm token is stored in GitHub. Packages get npm provenance automatically. Setup:
 
 1. GitHub: repository settings → Environments → create `npm` (optionally with required reviewers).
-2. npmjs.com: package settings → Trusted publisher → GitHub Actions: user `agpl`, repository `node-red-contrib-ampio-v2`, workflow `publish.yml`, environment `npm`.
+2. npmjs.com: package settings → Trusted publisher → GitHub Actions: organization `aii-gee`, repository `node-red-contrib-ampio-v2`, workflow `publish.yml`, environment `npm`.
 
 The trusted publisher is configured on an existing package, so the very first version has to be published once by hand (`npm publish`), later versions are published by the workflow.
 
@@ -77,6 +77,7 @@ npm stage approve <stage-id>
 Disclaimer: every version lower than 1.0.0 is considered as beta. I do all my best to make every release as stable as possible, but due to fast development of protocol, API changes may occur. 1.0.0 is planned after transition to /b/ MQTT broadcasts, which requires many changes.
 
 ### 1.1.x
+1.1.1 - Repository moved to [github.com/aii-gee/node-red-contrib-ampio-v2](https://github.com/aii-gee/node-red-contrib-ampio-v2), npm package published from there. Same changes as 1.1.0, which was not published.<br>
 1.1.0 - Virtual devices: Satel (inputs, outputs, zones; MAC `0x3100000 | module`) and Modbus slaves of M-CON-485 (`167 - I32 generic`, MAC `0x34xxxxx`) are listed in IN/OUT/Audit with names from the parent module configuration (sections 36/37), marked *virtual*; other devices seen only on device/v1 are listed as virtual too. Device discovery asks `get_devices` first and then reads device/v1 and legacy retained states one after another: subscribing to all at once made the broker drop the `get_devices` answer and part of the retained states (devices without names, missing types). OUT checks device/v1 numeric values against the Designer range (modules wrap U8 300 to 44 and ignore text), converts numeric strings, and writes legacy 8 bit analog flags (`afu8`) as raw frame `7af9 <value> <index-1>` (the `/cmd` topic does not set them). 16 bit analog flags (`afi16`) stay read-only.<br>
 
 ### 1.0.x

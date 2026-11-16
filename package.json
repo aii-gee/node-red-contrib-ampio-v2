@@ -41,8 +41,8 @@
     }
   ],
   "license": "ISC",
-  "homepage": "https://github.com/agpl/node-red-contrib-ampio-v2",
-  "repository": "github:agpl/node-red-contrib-ampio-v2",
+  "homepage": "https://github.com/aii-gee/node-red-contrib-ampio-v2",
+  "repository": "github:aii-gee/node-red-contrib-ampio-v2",
   "dependencies": {
     "left-pad": "^1.3.0",
     "mqtt": "^4.2.6"
