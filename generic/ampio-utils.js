@@ -94,6 +94,38 @@ exports.encode_value = function (value, time) {
     return JSON.stringify(data);
 }
 
+// Value for a device/v1 set, checked against the Designer attribute definition (leafdefs.json) when known.
+// Modules ignore string values ({"v":"9"}) and wrap numbers out of range (U8 300 -> 44, -1 -> 255),
+// so numeric strings are converted and out of range numbers rejected. Objects (hsv, rgb, cct) pass as they are.
+const NUMERIC_KINDS = {binary: true, linearU8: true, linearI16: true, enum: true};
+
+exports.normalize_value = function (attr, value) {
+    if (typeof value === 'boolean') {
+        return value ? 1 : 0;
+    }
+    if (!attr || !NUMERIC_KINDS[attr.kind]) {
+        return value;
+    }
+    let v = value;
+    if (typeof v === 'string') {
+        const s = v.trim().toLowerCase();
+        v = s === 'true' || s === 'on' ? 1 : (s === 'false' || s === 'off' ? 0 : (s !== '' && !isNaN(s) ? Number(s) : v));
+    }
+    if (typeof v !== 'number' || !Number.isFinite(v)) {
+        throw new Error('value must be a number, got ' + JSON.stringify(value));
+    }
+    if (attr.kind === 'binary' && v !== 0 && v !== 1) {
+        throw new Error('value must be 0 / 1, got ' + v);
+    }
+    if (attr.kind === 'enum' && attr.enum && !attr.enum.hasOwnProperty(v)) {
+        throw new Error('value must be one of ' + Object.keys(attr.enum).join(', ') + ', got ' + v);
+    }
+    if ((attr.min !== undefined && v < attr.min) || (attr.max !== undefined && v > attr.max)) {
+        throw new Error('value must be ' + attr.min + ' .. ' + attr.max + ', got ' + v);
+    }
+    return v;
+}
+
 exports.decode_value = function (payload) {
     const data = JSON.parse(payload.toString('utf-8'));
     if (data === null || typeof data !== 'object' || !data.hasOwnProperty('v')) {
@@ -225,6 +257,22 @@ exports.encode_legacy_value = function (value) {
         return JSON.stringify(value);
     }
     return String(value);
+}
+
+// Legacy value types the bridge does not accept on ampio/to/<MAC>/<valtype>/<index>/cmd, written as raw CAN frames.
+// afu8 (8 bit analog flag): 7A F9 <value> <index - 1>, checked on M-CON-DALI-s (as in node-red-contrib-ampio 0.x).
+exports.legacy_raw_frame = function (valtype, index, value) {
+    if (valtype !== 'afu8') {
+        return undefined;
+    }
+    const v = typeof value === 'boolean' ? (value ? 1 : 0) : Number(typeof value === 'string' ? value.trim() : value);
+    if (!Number.isInteger(v) || v < 0 || v > 255 || (typeof value === 'string' && value.trim() === '')) {
+        throw new Error('afu8 value must be an integer 0 .. 255, got ' + JSON.stringify(value));
+    }
+    if (!Number.isInteger(index) || index < 1 || index > 256) {
+        throw new Error('afu8 index must be 1 .. 256, got ' + index);
+    }
+    return '7af9' + v.toString(16).padStart(2, '0') + (index - 1).toString(16).padStart(2, '0');
 }
 
 // Raw CAN frame: ampio/to/<mac>/raw with hex payload, MAC lowercase hex as sent by Ampio Designer

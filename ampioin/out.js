@@ -1,5 +1,6 @@
 module.exports = function(RED) {
     const au = require('../generic/ampio-utils');
+    const leafdefs = require('./db/leafdefs.json');
 
     function ampioout(config) {
         RED.nodes.createNode(this,config);
@@ -30,6 +31,10 @@ module.exports = function(RED) {
                 return {topic: au.raw_topic(mac), payload: au.encode_raw(msg.payload)};
             }
             if (valtype !== '') {
+                const frame = au.legacy_raw_frame(valtype, index, msg.payload);
+                if (frame) {
+                    return {topic: au.raw_topic(mac), payload: frame};
+                }
                 return {topic: au.legacy_set_topic(mac, valtype, index), payload: au.encode_legacy_value(msg.payload)};
             }
             const devtype = Number(msg.hasOwnProperty('devtype') ? msg.devtype : node.devtype);
@@ -37,7 +42,14 @@ module.exports = function(RED) {
             if (!Number.isInteger(devtype) || !Number.isInteger(attribute)) {
                 throw new Error("Invalid target: mac=" + mac + " devtype=" + devtype + " attribute=" + attribute + " index=" + index);
             }
-            return {topic: au.build_topic('set', mac, devtype, attribute, index), payload: au.encode_value(msg.payload, msg.time)};
+            const def = leafdefs[devtype] && leafdefs[devtype].attributes[attribute];
+            let value;
+            try {
+                value = au.normalize_value(def, msg.payload);
+            } catch (err) {
+                throw new Error(err.message + " (" + (leafdefs[devtype] ? leafdefs[devtype].label : 'type ' + devtype) + ", mac=" + mac + " index=" + index + ")");
+            }
+            return {topic: au.build_topic('set', mac, devtype, attribute, index), payload: au.encode_value(value, msg.time)};
         }
 
         node.on("input", function(msg, send, done) {

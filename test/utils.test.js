@@ -271,6 +271,48 @@ test('virtual devices', async (t) => {
     });
 });
 
+test('normalize_value', async (t) => {
+    const defs = require('../ampioin/db/leafdefs.json');
+    const u8 = defs[149].attributes[0];
+    await t.test('numbers in range pass, numeric strings and booleans become numbers', () => {
+        assert.equal(au.normalize_value(u8, 7), 7);
+        assert.equal(au.normalize_value(u8, ' 9 '), 9);
+        assert.equal(au.normalize_value(u8, 254), 254);
+        assert.equal(au.normalize_value(defs[139].attributes[0], 'on'), 1);
+        assert.equal(au.normalize_value(defs[139].attributes[0], false), 0);
+    });
+    await t.test('out of range values are rejected (modules would wrap them)', () => {
+        assert.throws(() => au.normalize_value(u8, 300), /0 \.\. 254, got 300/);
+        assert.throws(() => au.normalize_value(u8, 255));
+        assert.throws(() => au.normalize_value(u8, -1));
+        assert.throws(() => au.normalize_value(u8, 'abc'), /must be a number/);
+        assert.throws(() => au.normalize_value(defs[139].attributes[0], 2), /0 \/ 1/);
+        assert.throws(() => au.normalize_value(defs[136].attributes[2], 9), /one of/);
+    });
+    await t.test('unknown definitions and objects pass unchanged', () => {
+        assert.equal(au.normalize_value(undefined, '9'), '9');
+        assert.deepEqual(au.normalize_value(defs[134].attributes[0], {h: 1, s: 2, v: 3}), {h: 1, s: 2, v: 3});
+    });
+});
+
+test('legacy_raw_frame', async (t) => {
+    await t.test('afu8 as 7af9 <value> <index-1>', () => {
+        assert.equal(au.legacy_raw_frame('afu8', 6, 7), '7af90705');
+        assert.equal(au.legacy_raw_frame('afu8', 1, '255'), '7af9ff00');
+        assert.equal(au.legacy_raw_frame('afu8', 16, true), '7af9010f');
+    });
+    await t.test('afu8 rejects values and indexes out of range', () => {
+        assert.throws(() => au.legacy_raw_frame('afu8', 6, 256));
+        assert.throws(() => au.legacy_raw_frame('afu8', 6, 1.5));
+        assert.throws(() => au.legacy_raw_frame('afu8', 6, ''));
+        assert.throws(() => au.legacy_raw_frame('afu8', 0, 1));
+    });
+    await t.test('other value types use the cmd topic', () => {
+        assert.equal(au.legacy_raw_frame('f', 1, 1), undefined);
+        assert.equal(au.legacy_raw_frame('afi16', 1, 1), undefined);
+    });
+});
+
 test('legacy API helpers', async (t) => {
     await t.test('topics use uppercase MAC', () => {
         assert.equal(au.legacy_state_topic('1fe5c', 't', 1), 'ampio/from/1FE5C/state/t/1');

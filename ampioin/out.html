@@ -177,7 +177,7 @@
                 if(!mac || s.type === '' || (!s.legacy && isNaN(s.type))){
                     return '';
                 }
-                if(s.legacy && s.type === 'raw'){
+                if(s.legacy && (s.type === 'raw' || (ACCESS === 'W' && LegacyDefs[s.type] && LegacyDefs[s.type].rawFrame))){
                     return 'ampio/to/' + mac.toLowerCase() + '/raw';
                 }
                 if(s.legacy){
@@ -233,6 +233,10 @@
                 const topic = topicFor(s, mac, attr, index);
                 if(topic){
                     line('Topic', topic, true);
+                }
+                const frame = s.legacy && LegacyDefs[s.type] && LegacyDefs[s.type].rawFrame;
+                if(frame && index){
+                    line('Frame', frame + ' <value> ' + Number(index - 1).toString(16).padStart(2, '0'), true);
                 }
                 if(s.legacy){
                     line('Legacy API', raw
@@ -370,6 +374,8 @@
     <ul>
         <li><code>o</code> outputs: <code>0</code>/<code>1</code>, <code>ON</code>/<code>OFF</code>, or <code>0</code>..<code>255</code> for analog outputs; <code>a</code> analog outputs <code>0</code>..<code>255</code></li>
         <li><code>f</code> flags <code>0</code>/<code>1</code></li>
+        <li><code>afu8</code> 8 bit analog flags <code>0</code>..<code>255</code>, sent as raw CAN frame <code>7af9 &lt;value&gt; &lt;index-1&gt;</code>
+            (the legacy <code>/cmd</code> topic does not set them). 16 bit analog flags (<code>afi16</code>) can only be read.</li>
         <li><code>rs</code> zone set temperature, ex. <code>19</code>; <code>rsdn</code> day/night temperatures, ex. <code>19,20</code>;
             <code>rm</code> zone mode: <code>0</code> calendar, <code>1</code> manual, <code>2</code> manual 2, <code>3</code> holiday, <code>4</code> lock</li>
         <li><code>raw</code> raw CAN frame as hex, ex. <code>"0901"</code>, sent to <code>ampio/to/&lt;mac&gt;/raw</code>. For advanced users, see Ampio CAN documentation.</li>
@@ -380,6 +386,11 @@
        <code>[W]</code> write only, <code>[RW]</code> read and write.</p>
     <h4>Index</h4>
     <p>Channel of the device, with its description from Designer if set. device/v1 counts from <code>0</code> (relay 1 = index 0), legacy counts from <code>1</code>.</p>
+    <h4>Values</h4>
+    <p>device/v1 numeric values are checked against the Designer range before sending, ex. U8 flag <code>0</code>..<code>254</code>:
+       modules ignore text values and wrap numbers out of range (<code>300</code> becomes <code>44</code>).
+       Numeric strings (<code>"9"</code>) and <code>true</code>/<code>false</code>, <code>"on"</code>/<code>"off"</code> are converted to numbers;
+       a value out of range ends with an error that a Catch node can handle.</p>
 
     <h3>Examples</h3>
     <p>Turn on relay 1 of <code>1f242</code>: type <code>129 - Relay</code>, attribute <code>0</code>, index <code>0</code>, <code>payload: true</code>
@@ -387,4 +398,8 @@
     <p>Open blind 3: type <code>136 - Blind</code>, attribute <code>2 - Motor</code>, index <code>2</code>, <code>payload: 2</code>.</p>
     <p>Set flag 5 of the server <code>15d6c</code>: type <code>f - Flag</code>, index <code>5</code>, <code>payload: 1</code>
        → <code>ampio/to/15D6C/f/5/cmd</code> <code>1</code>.</p>
+    <p>Set U8 flag 2 of <code>1ef0b</code> to 120: type <code>149 - U8 Flag</code>, index <code>1</code>, <code>payload: 120</code>
+       → <code>device/v1/set/leaf/1ef0b/149/0/1</code> <code>{"v":120}</code>.</p>
+    <p>Set 8 bit analog flag 6 of legacy <code>14b5f</code> to 7: type <code>afu8</code>, index <code>6</code>, <code>payload: 7</code>
+       → <code>ampio/to/14b5f/raw</code> <code>7af90705</code>.</p>
 </script>

@@ -134,6 +134,14 @@ async function integrationTests(s17) {
     ok(seen.some(([t, p]) => t === 'ampio/to/1FE5C/f/5/cmd' && p === '1'), 'legacy OUT sends to ampio/to/.../cmd');
     ok(seen.some(([t, p]) => t === 'ampio/to/1A2B/o/0/cmd' && p === '1'), 'msg.valtype switches OUT to legacy API');
     ok(seen.some(([t, p]) => t === 'device/v1/set/leaf/1fe5c/139/0/5' && p === '{"v":1}'), 'msg.devtype switches legacy OUT to device/v1');
+    let rangeErr;
+    outN.emit('input', { payload: '120', devtype: 149, attribute: 0, index: 1 }, null, () => {});
+    outN.emit('input', { payload: 300, devtype: 149, attribute: 0, index: 1 }, null, e => (rangeErr = e));
+    outN.emit('input', { payload: 7, mac: '14b5f', valtype: 'afu8', index: 6 }, null, () => {});
+    await wait(200);
+    ok(seen.some(([t, p]) => t === 'device/v1/set/leaf/1a2b/149/0/1' && p === '{"v":120}'), 'OUT sends numeric string as number');
+    ok(rangeErr instanceof Error && /254/.test(rangeErr.message) && !seen.some(([, p]) => p === '{"v":300}'), 'OUT rejects U8 value out of range');
+    ok(seen.some(([t, p]) => t === 'ampio/to/14b5f/raw' && p === '7af90705'), 'OUT writes legacy afu8 as raw frame');
     const outR = mk('Ampio v2 OUT', { id: 'outR', server: 'cfg', mac: '15D6C', valtype: 'raw', devtype: '', index: 0 });
     let badRaw;
     outR.emit('input', { payload: '09 01' }, null, () => {});
