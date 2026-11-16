@@ -271,7 +271,7 @@
                             // Order keeps server order, object keys would put numeric-looking MACs first
                             Order.forEach(function(mac){
                                 const dev = Devices[mac];
-                                $('<option>').val(mac).text(mac + (dev.name ? ' (' + dev.name + ')' : '') + (dev.legacy ? ' - legacy' : '')).appendTo(sel);
+                                $('<option>').val(mac).text(mac + (dev.name ? ' (' + dev.name + ')' : '') + (dev.legacy ? ' - legacy' : '') + (dev.virtual ? ' - virtual' : '')).appendTo(sel);
                             });
                             if(node.mac){
                                 sel.val(node.mac);
@@ -311,6 +311,7 @@
     <div class="form-tips" style="margin-bottom: 12px;">
         Click <i class="fa fa-search"></i> to load devices from the server. A new or changed server config has to be <b>deployed</b> first.
         Devices marked <i>legacy</i> are older CAN modules available only through the legacy API.
+        Devices marked <i>virtual</i> are published by a module on behalf of a connected system (Satel, Modbus slaves).
     </div>
     <div class="form-row">
         <label for="ampio-type"><i class="icon-tag"></i> Type</label>
@@ -362,7 +363,7 @@
     <h4>Server</h4>
     <p>Ampio v2 Config node with the MQTT broker of the Ampio server. Deploy a new or changed config before searching for devices.</p>
     <h4>Target device</h4>
-    <p>Devices found on the server, with names from Ampio Designer. Older CAN modules are marked <i>legacy</i> and are controlled through the legacy API.</p>
+    <p>Devices found on the server, with names from Ampio Designer. Older CAN modules are marked <i>legacy</i> and are controlled through the legacy API. Virtual devices (Satel inputs/outputs/zones, Modbus slave values as <code>167 I32 generic</code>) are published by the module they are connected to under their own MAC, ex. <code>3115d6c</code>; they are listed with the parent module name.</p>
     <h4>Type</h4>
     <p>The <i>device/v1</i> group lists channel types the device has; types with nothing to write are hidden.
        The <i>Legacy (ampio/...)</i> group lists legacy value types:</p>

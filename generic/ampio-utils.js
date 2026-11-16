@@ -273,11 +273,212 @@ exports.parse_legacy_descriptions = function (b64) {
     return names;
 }
 
+// Virtual (child) devices: a module publishes their values on device/v1 under the child's own MAC,
+// get_devices does not list them. MAC = 0x3000000 | childType << 20 | ..., as Ampio Designer builds it:
+//   Satel (1):  0x3100000 | parent macProd                     (M-SERV / module with INT-RS on RS232)
+//   Modbus (4): 0x3400000 | slaveId << 12 | parent macProd & 0xfff (M-CON-485 Modbus master slave)
+const CHILD_SATEL = 1;
+const CHILD_MODBUS = 4;
+const SATEL_CONFIG_SECTION = 36;
+const MODBUS_CONFIG_SECTION = 37;
+const SF_BIN_IN = 128, SF_SATEL_OUT = 161, SF_ALARM_ZONE = 162, SF_I32_GENERIC = 167;
+
+exports.satel_mac = function (parentMacProd) {
+    return ((0x3000000 | (CHILD_SATEL << 20) | parentMacProd) >>> 0).toString(16);
+}
+
+exports.modbus_mac = function (parentMacProd, slaveId) {
+    return ((0x3000000 | (CHILD_MODBUS << 20) | ((slaveId & 255) << 12) | (parentMacProd & 4095)) >>> 0).toString(16);
+}
+
+// Designer TLV used by sections 36/37: varint tag, varint length, value -> [[tag, Buffer]]
+function tlv_fields(buf) {
+    const out = [];
+    let i = 0;
+    function varint() {
+        let r = 0, mul = 1, b;
+        do {
+            if (i >= buf.length) {
+                throw new Error('TLV varint runs past the data');
+            }
+            b = buf[i++];
+            r += (b & 0x7f) * mul;
+            mul *= 128;
+        } while (b & 0x80);
+        return r;
+    }
+    while (i < buf.length) {
+        const tag = varint();
+        const len = varint();
+        if (i + len > buf.length) {
+            throw new Error('TLV field ' + tag + ' runs past the data');
+        }
+        out.push([tag, buf.slice(i, i + len)]);
+        i += len;
+    }
+    return out;
+}
+
+function tlv_items(buf, itemTag) {
+    return tlv_fields(buf).filter(function (f) { return f[0] === itemTag; }).map(function (f) { return f[1]; });
+}
+
+// little endian unsigned of any length up to 4 bytes
+function le_uint(b) {
+    let r = 0;
+    for (let i = Math.min(b.length, 4) - 1; i >= 0; i--) {
+        r = r * 256 + b[i];
+    }
+    return r;
+}
+
+// Section 36 (Satel config): 2 name, 5/6/7 inputs/outputs/zones count u16 LE (default 32),
+// 8/9/10 inputs/outputs/zones, items tag 16: 17 num varint, 18 name. The PIN (tag 3) is not read.
+exports.parse_satel_config = function (b64) {
+    const cfg = {name: '', counts: {}, names: {}};
+    cfg.counts[SF_BIN_IN] = cfg.counts[SF_SATEL_OUT] = cfg.counts[SF_ALARM_ZONE] = 32;
+    cfg.names[SF_BIN_IN] = {};
+    cfg.names[SF_SATEL_OUT] = {};
+    cfg.names[SF_ALARM_ZONE] = {};
+    const countTag = {5: SF_BIN_IN, 6: SF_SATEL_OUT, 7: SF_ALARM_ZONE};
+    const listTag = {8: SF_BIN_IN, 9: SF_SATEL_OUT, 10: SF_ALARM_ZONE};
+    tlv_fields(Buffer.from(b64 || '', 'base64')).forEach(function (f) {
+        const tag = f[0], v = f[1];
+        if (tag === 2) {
+            cfg.name = v.toString('utf-8');
+        } else if (countTag[tag]) {
+            cfg.counts[countTag[tag]] = le_uint(v.slice(0, 2));
+        } else if (listTag[tag]) {
+            tlv_items(v, 16).forEach(function (item) {
+                let num = 0, name = '';
+                tlv_fields(item).forEach(function (x) {
+                    if (x[0] === 17) {
+                        num = tlv_varint(x[1]);
+                    } else if (x[0] === 18) {
+                        name = x[1].toString('utf-8');
+                    }
+                });
+                if (name) {
+                    cfg.names[listTag[tag]][num] = name;
+                }
+            });
+        }
+    });
+    return cfg;
+}
+
+function tlv_varint(b) {
+    let r = 0, mul = 1;
+    for (let i = 0; i < b.length; i++) {
+        r += (b[i] & 0x7f) * mul;
+        mul *= 128;
+        if (!(b[i] & 0x80)) {
+            break;
+        }
+    }
+    return r;
+}
+
+// Section 37 (Modbus master config): 2 devices, items tag 16: 17 slaveId u8, 18 name, 23 macUser u32 LE,
+// 24 leafSlots, items tag 40: 1 outNum u8, 2 leafName. Every slot is I32_GENERIC (167) attr 0 index outNum.
+exports.parse_modbus_config = function (b64, parentMacProd) {
+    const out = [];
+    tlv_fields(Buffer.from(b64 || '', 'base64')).forEach(function (f) {
+        if (f[0] !== 2) {
+            return;
+        }
+        tlv_items(f[1], 16).forEach(function (item) {
+            const dev = {slaveId: 0, name: '', mac: '', slots: {}};
+            let macUser = 0;
+            tlv_fields(item).forEach(function (x) {
+                if (x[0] === 17) {
+                    dev.slaveId = x[1][0] || 0;
+                } else if (x[0] === 18) {
+                    dev.name = x[1].toString('utf-8');
+                } else if (x[0] === 23) {
+                    macUser = le_uint(x[1]);
+                } else if (x[0] === 24) {
+                    tlv_items(x[1], 40).forEach(function (slot) {
+                        let num = 0, name = '';
+                        tlv_fields(slot).forEach(function (s) {
+                            if (s[0] === 1) {
+                                num = s[1][0] || 0;
+                            } else if (s[0] === 2) {
+                                name = s[1].toString('utf-8');
+                            }
+                        });
+                        dev.slots[num] = name;
+                    });
+                }
+            });
+            dev.mac = macUser ? macUser.toString(16) : exports.modbus_mac(parentMacProd, dev.slaveId);
+            out.push(dev);
+        });
+    });
+    return out;
+}
+
+// get_devices device -> child devices from its Satel (36) and Modbus (37) sections:
+//   [{mac, name, parent, counts: {type: n}, channels: {type: {index: name}}}]
+exports.child_devices = function (dev, parentName) {
+    const children = [];
+    const parent = (dev.macUser || dev.macProd).toString(16);
+    const label = parentName || parent;
+    (dev.sections || []).forEach(function (s) {
+        if (!s.data) {
+            return;
+        }
+        try {
+            if (s.type === SATEL_CONFIG_SECTION) {
+                const cfg = exports.parse_satel_config(s.data);
+                children.push({mac: exports.satel_mac(dev.macProd), name: cfg.name || 'Satel (' + label + ')', parent: parent, counts: cfg.counts, channels: cfg.names});
+            } else if (s.type === MODBUS_CONFIG_SECTION) {
+                exports.parse_modbus_config(s.data, dev.macProd).forEach(function (m) {
+                    const counts = {}, channels = {};
+                    const slots = Object.keys(m.slots).map(Number);
+                    counts[SF_I32_GENERIC] = slots.length ? Math.max.apply(null, slots) + 1 : 0;
+                    channels[SF_I32_GENERIC] = m.slots;
+                    children.push({mac: m.mac, name: m.name || 'Modbus ' + m.slaveId + ' (' + label + ')', parent: parent, counts: counts, channels: channels});
+                });
+            }
+        } catch {
+            // child names are optional, values seen on device/v1 still make the device usable
+        }
+    });
+    return children;
+}
+
+// Kind of a child device MAC (seen on device/v1 only), or undefined for a module MAC
+exports.child_kind = function (mac) {
+    const m = parseInt(mac, 16);
+    if (!(m >= 0x3000000 && m < 0x4000000)) {
+        return undefined;
+    }
+    const type = (m >> 20) & 0xf;
+    return type === CHILD_SATEL ? 'Satel' : (type === CHILD_MODBUS ? 'Modbus' : 'Virtual');
+}
+
+// get_devices device a child MAC belongs to: Satel keeps the whole parent macProd, Modbus its low 12 bits
+// (taken only when exactly one module matches)
+function child_parent(mac, kind, rpcDevices) {
+    const m = parseInt(mac, 16);
+    if (kind === 'Satel') {
+        return rpcDevices.find(function (d) { return d.macProd === (m & 0xfffff); });
+    }
+    if (kind === 'Modbus') {
+        const found = rpcDevices.filter(function (d) { return (d.macProd & 4095) === (m & 4095); });
+        return found.length === 1 ? found[0] : undefined;
+    }
+    return undefined;
+}
+
 // get_devices result + retained state topics + device_api list ->
-//   [{mac, name, legacy, leafs: [{type, attribute, count, names}], legacyTypes: [{valtype, indexes, names}]}]
+//   [{mac, name, legacy, virtual, parent, leafs: [{type, attribute, count, names}], legacyTypes: [{valtype, indexes, names}]}]
 // Types and channel counts come from deviceConfigTable, attributes from retained device/v1 states (default 0).
 // Legacy value types come from retained ampio/from states, their names from device_api descriptions.
 // Old CAN devices report no leafs (legacy: true), they are used through the legacy API.
+// Virtual devices (virtual: true) are not listed by get_devices: Satel/Modbus children of a module (parent = its
+// MAC, names and counts from the parent's sections 36/37) and other devices seen only on device/v1.
 exports.discover_devices = function (rpcDevices, topics, legacyTopics, apiDevices) {
     const seen = {};
     topics.forEach(function (topic) {
@@ -307,11 +508,52 @@ exports.discover_devices = function (rpcDevices, topics, legacyTopics, apiDevice
         };
     });
     const devices = {};
-    rpcDevices.map(exports.device_info).forEach(function (info) {
+    const children = {};
+    rpcDevices.forEach(function (dev) {
+        const info = exports.device_info(dev);
         devices[info.mac] = info;
+        exports.child_devices(dev, info.name).forEach(function (child) {
+            children[child.mac] = child;
+        });
+    });
+    // states retained under a module's production MAC (published before its MAC was changed) are not virtual
+    const byMacProd = {};
+    rpcDevices.forEach(function (dev) {
+        if (dev.macUser && dev.macUser !== dev.macProd) {
+            byMacProd[dev.macProd.toString(16)] = devices[dev.macUser.toString(16)];
+        }
     });
     Object.keys(seen).concat(Object.keys(legacySeen)).forEach(function (mac) {
-        devices[mac] = devices[mac] || {mac: mac, name: '', leafs: [], channels: {}};
+        if (devices[mac] || children[mac]) {
+            return;
+        }
+        const module = byMacProd[mac];
+        if (module) {
+            devices[mac] = {mac: mac, name: (module.name || module.mac) + ' (old MAC)', leafs: [], channels: module.channels};
+            return;
+        }
+        // without get_devices data a missing module is not necessarily virtual, only child MACs are
+        const kind = exports.child_kind(mac);
+        devices[mac] = {mac: mac, name: '', leafs: [], channels: {}, virtual: !!kind || rpcDevices.length > 0 && !!seen[mac]};
+        if (kind) {
+            const parent = child_parent(mac, kind, rpcDevices);
+            const info = parent && devices[(parent.macUser || parent.macProd).toString(16)];
+            const suffix = info ? ' (' + (info.name || info.mac) + ')' : '';
+            if (info) {
+                devices[mac].parent = info.mac;
+            }
+            devices[mac].name = (kind === 'Modbus' ? 'Modbus ' + ((parseInt(mac, 16) >> 12) & 255) : kind) + suffix;
+        }
+    });
+    // children configured on their parent show up even before they publish a value
+    Object.keys(children).forEach(function (mac) {
+        const child = children[mac];
+        const info = devices[mac] = devices[mac] || {mac: mac, name: '', leafs: [], channels: {}};
+        info.virtual = true;
+        info.parent = child.parent;
+        info.name = info.name || child.name;
+        info.channels = child.channels;
+        info.leafs = Object.keys(child.counts).map(function (type) { return {type: Number(type), count: child.counts[type]}; });
     });
     return Object.keys(devices).sort().map(function (mac) {
         const info = devices[mac];
@@ -319,8 +561,10 @@ exports.discover_devices = function (rpcDevices, topics, legacyTopics, apiDevice
         const counts = {};
         info.leafs.forEach(function (l) { counts[l.type] = l.count; });
         Object.keys(retained).forEach(function (type) {
-            if (!counts.hasOwnProperty(type)) {
-                counts[type] = Math.max.apply(null, Object.values(retained[type]));
+            const max = Math.max.apply(null, Object.values(retained[type]));
+            // virtual devices may publish more channels than configured (ex. Satel inputs)
+            if (!counts.hasOwnProperty(type) || (info.virtual && max > counts[type])) {
+                counts[type] = max;
             }
         });
         const leafs = [];
@@ -338,7 +582,16 @@ exports.discover_devices = function (rpcDevices, topics, legacyTopics, apiDevice
                 names: api.names[valtype] || {}
             };
         });
-        return {mac: mac, name: info.name || api.name, legacy: leafs.length === 0, leafs: leafs, legacyTypes: legacyTypes};
+        const out = {mac: mac, name: info.name || api.name, legacy: leafs.length === 0, leafs: leafs, legacyTypes: legacyTypes};
+        if (info.virtual) {
+            out.virtual = true;
+            out.legacy = false;
+            out.name = out.name || 'Virtual device';
+            if (info.parent) {
+                out.parent = info.parent;
+            }
+        }
+        return out;
     });
 }
 

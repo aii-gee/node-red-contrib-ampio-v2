@@ -164,6 +164,113 @@ test('discover_devices', async (t) => {
     });
 });
 
+// Designer TLV (sections 36/37): varint tag, varint length, value
+function tlv(tag, value) {
+    const v = Buffer.isBuffer(value) ? value : (typeof value === 'string' ? Buffer.from(value) : Buffer.from(value));
+    return Buffer.concat([Buffer.from([tag, v.length]), v]);
+}
+const satelIo = (num, name) => tlv(16, Buffer.concat([tlv(17, [num]), tlv(18, name), tlv(19, [0]), tlv(20, [0])]));
+const satelSection = Buffer.concat([
+    tlv(1, [1]), tlv(2, 'Alarm'), tlv(3, [0x12, 0x34, 0xff, 0xff]), tlv(5, [64, 0]), tlv(6, [8, 0]),
+    tlv(8, Buffer.concat([satelIo(0, 'P1 PIR'), satelIo(17, 'Drzwi')])),
+    tlv(9, satelIo(1, 'Syrena')), tlv(10, satelIo(0, 'Dom'))
+]);
+const modbusSlot = (num, name) => tlv(40, Buffer.concat([tlv(1, [num]), tlv(2, name), tlv(3, [0, 0]), tlv(4, [0])]));
+const modbusSection = Buffer.concat([
+    tlv(1, [1]), tlv(3, [0x80, 0x25, 0, 0, 8, 0, 1, 0xe8, 0x03, 0xe8, 0x03]),
+    tlv(2, Buffer.concat([
+        tlv(16, Buffer.concat([tlv(17, [9]), tlv(18, 'Deye'), tlv(19, [1, 0]), tlv(23, [0xd2, 0x99, 0x40, 0x03]), tlv(24, Buffer.concat([modbusSlot(0, 'SOC'), modbusSlot(5, 'Grid W')]))])),
+        tlv(16, Buffer.concat([tlv(17, [4]), tlv(18, ''), tlv(24, modbusSlot(2, ''))]))
+    ]))
+]);
+
+test('virtual devices', async (t) => {
+    await t.test('child MACs as Ampio Designer builds them', () => {
+        assert.equal(au.satel_mac(0x15d6c), '3115d6c');
+        assert.equal(au.modbus_mac(0x1d9d2, 4), '34049d2');
+        assert.equal(au.modbus_mac(0x1d9d2, 132), '34849d2');
+        assert.equal(au.child_kind('3115d6c'), 'Satel');
+        assert.equal(au.child_kind('34099d2'), 'Modbus');
+        assert.equal(au.child_kind('3215d6c'), 'Virtual');
+        assert.equal(au.child_kind('1d9d2'), undefined);
+        assert.equal(au.child_kind('11115d6c'), undefined);
+    });
+    await t.test('parse_satel_config: name, counts, names; PIN not exposed', () => {
+        const cfg = au.parse_satel_config(satelSection.toString('base64'));
+        assert.equal(cfg.name, 'Alarm');
+        assert.deepEqual(cfg.counts, {128: 64, 161: 8, 162: 32});
+        assert.deepEqual(cfg.names, {128: {0: 'P1 PIR', 17: 'Drzwi'}, 161: {1: 'Syrena'}, 162: {0: 'Dom'}});
+        assert.ok(!JSON.stringify(cfg).includes('4660'));
+    });
+    await t.test('parse_modbus_config: slaves with own or computed MAC and slot names', () => {
+        assert.deepEqual(au.parse_modbus_config(modbusSection.toString('base64'), 0x1d9d2), [
+            {slaveId: 9, name: 'Deye', mac: '34099d2', slots: {0: 'SOC', 5: 'Grid W'}},
+            {slaveId: 4, name: '', mac: '34049d2', slots: {2: ''}}
+        ]);
+    });
+    await t.test('broken TLV throws', () => {
+        assert.throws(() => au.parse_satel_config(Buffer.from([2, 9, 65]).toString('base64')));
+    });
+
+    const rpc = [
+        {macProd: 0x15d6c, macUser: 0x1, name: Buffer.from('Server').toString('base64'), deviceConfigTable: Buffer.from([1, 0x8b, 32]).toString('base64'),
+            sections: [{type: 36, length: satelSection.length, data: satelSection.toString('base64')}]},
+        {macProd: 0x1d9d2, macUser: 0x1d9d2, name: Buffer.from('M-CON-485').toString('base64'), deviceConfigTable: '',
+            sections: [{type: 37, length: modbusSection.length, data: modbusSection.toString('base64')}]},
+        {macProd: 0x2a9d2, macUser: 0x2a9d2, deviceConfigTable: Buffer.from([1, 0x8b, 8]).toString('base64'), sections: []}
+    ];
+    const topics = [
+        'device/v1/state/leaf/3115d6c/128/0/127', 'device/v1/state/leaf/3115d6c/162/2/0',
+        'device/v1/state/leaf/34099d2/167/0/8', 'device/v1/state/leaf/34849d2/167/0/15',
+        'device/v1/state/leaf/11115d6c/128/0/3', 'device/v1/state/leaf/15d6c/139/0/2',
+        'device/v1/state/leaf/3155555/128/0/0'
+    ];
+    const out = au.discover_devices(rpc, topics, [], null);
+    const byMac = Object.fromEntries(out.map((d) => [d.mac, d]));
+
+    await t.test('Satel child named from section 36 of its parent', () => {
+        const s = byMac['3115d6c'];
+        assert.equal(s.name, 'Alarm');
+        assert.equal(s.parent, '1');
+        assert.equal(s.virtual, true);
+        assert.equal(s.legacy, false);
+        const bin = s.leafs.find((l) => l.type === 128);
+        assert.equal(bin.count, 128, 'retained index above the configured count widens it');
+        assert.equal(bin.names[17], 'Drzwi');
+        assert.deepEqual(s.leafs.filter((l) => l.type === 162).map((l) => l.attribute), [2]);
+        assert.equal(s.leafs.find((l) => l.type === 161).count, 8);
+    });
+    await t.test('Modbus children from section 37, also before they publish', () => {
+        const deye = byMac['34099d2'];
+        assert.equal(deye.name, 'Deye');
+        assert.equal(deye.parent, '1d9d2');
+        assert.deepEqual(deye.leafs.map((l) => [l.type, l.attribute, l.count, l.names[5]]), [[167, 0, 9, 'Grid W']]);
+        assert.equal(byMac['34049d2'].name, 'Modbus 4 (M-CON-485)');
+        assert.equal(byMac['34049d2'].leafs[0].count, 3);
+    });
+    await t.test('Modbus child without configuration: name from MAC, parent when unambiguous', () => {
+        assert.equal(byMac['34849d2'].name, 'Modbus 132');
+        assert.equal(byMac['34849d2'].parent, undefined, 'two modules share the low MAC bits');
+        assert.equal(byMac['34849d2'].leafs[0].count, 16);
+    });
+    await t.test('other devices seen only on device/v1 are virtual', () => {
+        assert.equal(byMac['11115d6c'].virtual, true);
+        assert.equal(byMac['11115d6c'].name, 'Virtual device');
+        assert.equal(byMac['3155555'].name, 'Satel');
+    });
+    await t.test('states under a production MAC belong to the module', () => {
+        const old = byMac['15d6c'];
+        assert.equal(old.name, 'Server (old MAC)');
+        assert.equal(old.virtual, undefined);
+        assert.equal(byMac['1'].virtual, undefined);
+    });
+    await t.test('without get_devices only child MACs are virtual', () => {
+        const only = au.discover_devices([], topics, [], null);
+        assert.equal(only.find((d) => d.mac === '3115d6c').name, 'Satel');
+        assert.equal(only.find((d) => d.mac === '11115d6c').virtual, undefined);
+    });
+});
+
 test('legacy API helpers', async (t) => {
     await t.test('topics use uppercase MAC', () => {
         assert.equal(au.legacy_state_topic('1fe5c', 't', 1), 'ampio/from/1FE5C/state/t/1');

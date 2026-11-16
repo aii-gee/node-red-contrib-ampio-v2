@@ -271,7 +271,7 @@
                             // Order keeps server order, object keys would put numeric-looking MACs first
                             Order.forEach(function(mac){
                                 const dev = Devices[mac];
-                                $('<option>').val(mac).text(mac + (dev.name ? ' (' + dev.name + ')' : '') + (dev.legacy ? ' - legacy' : '')).appendTo(sel);
+                                $('<option>').val(mac).text(mac + (dev.name ? ' (' + dev.name + ')' : '') + (dev.legacy ? ' - legacy' : '') + (dev.virtual ? ' - virtual' : '')).appendTo(sel);
                             });
                             if(node.mac){
                                 sel.val(node.mac);
@@ -311,6 +311,7 @@
     <div class="form-tips" style="margin-bottom: 12px;">
         Click <i class="fa fa-search"></i> to load devices from the server. A new or changed server config has to be <b>deployed</b> first.
         Devices marked <i>legacy</i> are older CAN modules available only through the legacy API.
+        Devices marked <i>virtual</i> are published by a module on behalf of a connected system (Satel, Modbus slaves).
     </div>
     <div class="form-row">
         <label for="ampio-type"><i class="icon-tag"></i> Type</label>
@@ -369,7 +370,9 @@
     <p>Ampio v2 Config node with the MQTT broker of the Ampio server. Deploy a new or changed config before searching for devices.</p>
     <h4>Target device</h4>
     <p>Devices found on the server, with names from Ampio Designer. Older CAN modules (ex. M-SENS, M-REL-10s, M-DIM-2s) are marked <i>legacy</i>:
-       the server does not publish them on the new API, they are read through the legacy API.</p>
+       the server does not publish them on the new API, they are read through the legacy API.
+       Devices marked <i>virtual</i> are published by a module for a connected system under their own MAC: Satel inputs, outputs and zones (ex. <code>3115d6c</code>, names from the Satel configuration)
+       and Modbus slaves of M-CON-485 (values as <code>167 - I32 generic</code>, one index per slot).</p>
     <h4>Type</h4>
     <p>The <i>device/v1</i> group lists channel types the device has (ex. Relay, Blind, AC dimmer, Binary Flag); types with nothing to read are hidden.
        The <i>Legacy (ampio/...)</i> group lists value types of the legacy API the device publishes:</p>
