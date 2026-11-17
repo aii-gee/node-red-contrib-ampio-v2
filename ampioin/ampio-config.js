@@ -331,7 +331,116 @@ module.exports = function(RED) {
         // done(err, devices); err.status carries an HTTP status for the editor endpoint
         // Steps run one after another: the broker drops messages to a client flooded with retained states,
         // so the get_devices answer is awaited first and each state subscription gets its burst alone.
+        // Devices on CAN and device/v1 + virtual devices of the mobile application (from its database)
         node.discoverDevices = function(done){
+            let modules = null, app = null, appTimer = null, finished = false;
+            function both(){
+                if(finished || !modules || !app){
+                    return;
+                }
+                finished = true;
+                clearTimeout(appTimer);
+                if(modules.err){
+                    return done(modules.err);
+                }
+                done(null, au.merge_app_devices(modules.list, app.devices, app.objects));
+            }
+            node.discoverModules(function(err, list){
+                modules = {err: err, list: list};
+                // the application database answers within a second; without it the modules are listed alone
+                appTimer = setTimeout(function(){
+                    app = app || {};
+                    both();
+                }, DISCOVERY_TIME);
+                both();
+            });
+            node.readAppTables(['devices', 'objects'], function(tables){
+                app = tables;
+                both();
+            });
+        };
+
+        // Tables of the mobile application database, read as Ampio Designer does: the table name sent to
+        // ampio/control/admin/config, the answer on ampio/fromDB/admin/config/<table>.
+        // done({table: rows | null}); a table without an answer within APP_TABLES_TIME is null.
+        const APP_CONFIG_REQUEST = 'ampio/control/admin/config';
+        const APP_CONFIG_RESPONSE = 'ampio/fromDB/admin/config/';
+        const APP_TABLES_TIME = 10000;
+        node.readAppTables = function(tables, done){
+            const client = node.createClient(Object.assign({}, node.options, {
+                clientId: node.options.clientId + '_app' + Math.floor(Math.random() * 1e6),
+                reconnectPeriod: 0,
+                connectTimeout: DISCOVERY_TIME
+            }));
+            const result = {};
+            tables.forEach(function(t){ result[t] = null; });
+            let finished = false;
+            function finish(){
+                if(finished){
+                    return;
+                }
+                finished = true;
+                clearTimeout(timer);
+                client.end(true);
+                done(result);
+            }
+            const timer = setTimeout(finish, APP_TABLES_TIME);
+            client.on('error', finish);
+            client.on('message', function(topic, message){
+                const table = topic.slice(APP_CONFIG_RESPONSE.length);
+                if(!topic.startsWith(APP_CONFIG_RESPONSE) || !result.hasOwnProperty(table) || result[table]){
+                    return;
+                }
+                try{
+                    const list = JSON.parse(message).List;
+                    result[table] = Array.isArray(list) ? list : [];
+                }
+                catch(err){
+                    node.warn("Invalid application " + table + " response: " + err.message);
+                    result[table] = [];
+                }
+                if(tables.every(function(t){ return result[t]; })){
+                    finish();
+                }
+            });
+            client.on('connect', function(){
+                client.subscribe(tables.map(function(t){ return APP_CONFIG_RESPONSE + t; }), function(err){
+                    if(err){
+                        return finish();
+                    }
+                    tables.forEach(function(t){ client.publish(APP_CONFIG_REQUEST, t); });
+                });
+            });
+        };
+
+        // ids of the application objects of a virtual device channel; callback(err, ids).
+        // The objects table is shared by the IN nodes started together and read again after APP_OBJECTS_TTL.
+        const APP_OBJECTS_TTL = 60000;
+        let appObjects = null, appObjectsAt = 0, appWaiting = null;
+        node.appObjectIds = function(mac, type, attribute, index, callback){
+            function answer(){
+                callback(appObjects ? null : new Error("application objects not available"),
+                    au.app_object_ids(appObjects || [], mac, type, attribute, index));
+            }
+            if(appObjects && Date.now() - appObjectsAt < APP_OBJECTS_TTL){
+                return answer();
+            }
+            if(appWaiting){
+                return appWaiting.push(answer);
+            }
+            appWaiting = [answer];
+            node.readAppTables(['objects'], function(tables){
+                if(tables.objects){
+                    appObjects = tables.objects;
+                    appObjectsAt = Date.now();
+                }
+                const waiting = appWaiting;
+                appWaiting = null;
+                waiting.forEach(function(f){ f(); });
+            });
+        };
+
+        node.discoverModules = function(done){
             // Separate client, so retained states re-sent on subscribe do not reach IN nodes
             const client = node.createClient(Object.assign({}, node.options, {
                 clientId: node.options.clientId + '_discovery',

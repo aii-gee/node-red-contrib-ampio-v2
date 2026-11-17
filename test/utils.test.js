@@ -461,3 +461,45 @@ test('LCD helpers (legacy behaviour kept)', async (t) => {
         assert.equal(au.decStrToHexStr('255'), 'ff');
     });
 });
+
+test('application virtual devices', async (t) => {
+    const devices = [
+        {id: 30, mac: 285216769, typ_urzadzenia: 256, nazwa_urzadzenia: 'Urządzenie wirtualne', data: '{"type":0,"sf":[{"key":3,"val":8}]}'},
+        {id: 28, mac: 285216768, typ_urzadzenia: 256, nazwa_urzadzenia: '', data: 'not json'},
+        {id: 1, mac: 0x1a2b, typ_urzadzenia: 62, nazwa_urzadzenia: 'Salon'}
+    ];
+    const objects = [
+        {id: 474, leafId: '0_11001001_3_0_0', opis_menu: 'Virt flag 0', params: 0, prawa: '7f'},
+        {id: 480, leafId: '0_11001001_3_0_0', opis_menu: 'Second', params: 2 ** 33, prawa: '7f'},
+        {id: 9, leafId: '0_11001001_3_0_1', opis_menu: 'Deleted', params: 2 ** 33 + 16, prawa: '7f'},
+        {id: 10, leafId: '0_11001001_3_0_2', opis_menu: 'Hidden', params: 0, prawa: '0'},
+        {id: 258, leafId: '0_11001000_1002_0_9', opis_menu: 'Freq F1', params: 0, prawa: '7f'},
+        {id: 27, leafId: '0_1a2b_129_0_0', opis_menu: 'Relay', params: 0, prawa: '7f'}
+    ];
+    await t.test('channels from data.sf, names and object ids from not deleted objects', () => {
+        const list = au.app_virtual_devices(devices, objects);
+        assert.deepEqual(list.map((d) => d.mac), ['11001001', '11001000']);
+        assert.deepEqual(list[0].leafs, [{type: 3, attribute: 0, count: 8, names: {0: 'Virt flag 0'}, objects: {0: [474, 480]}}]);
+        assert.equal(list[0].app, true);
+        assert.equal(list[1].name, 'Virtual device');
+        assert.deepEqual(list[1].leafs, [{type: 1002, attribute: 0, count: 10, names: {9: 'Freq F1'}, objects: {9: [258]}}]);
+    });
+    await t.test('object ids of a channel', () => {
+        assert.deepEqual(au.app_object_ids(objects, '11001001', 3, 0, 0), [474, 480]);
+        assert.deepEqual(au.app_object_ids(objects, '11001001', 3, 0, 1), []);
+        assert.deepEqual(au.app_object_ids(objects, '11001001', 3, 0, 2), []);
+    });
+    await t.test('merge keeps modules found on CAN', () => {
+        const merged = au.merge_app_devices([{mac: '11001000', name: 'seen'}, {mac: '1a2b'}], devices, objects);
+        assert.deepEqual(merged.map((d) => d.mac), ['11001000', '11001001', '1a2b']);
+        assert.equal(merged[0].name, 'seen');
+    });
+    await t.test('object state payload', () => {
+        assert.deepEqual(au.decode_app_state(Buffer.from('{ "state": "678.799988","desc": "678.8 ppm" , "on": 17} ')), {value: 678.799988, desc: '678.8 ppm', on: 17});
+        assert.equal(au.decode_app_state('{"state":"on"}').value, 'on');
+        assert.equal(au.decode_app_state('{"state":""}').value, '');
+        assert.throws(() => au.decode_app_state('{"x":1}'));
+        assert.equal(au.app_state_topic(474), 'ampio/fromDB/+/ob/474/state');
+        assert.equal(au.app_leaf_id('1A2B', 129, 0, 3), '0_1a2b_129_0_3');
+    });
+});

@@ -160,6 +160,19 @@ async function integrationTests(s17) {
             { macProd: 0x9999, macUser: 0x1a2b, deviceConfigTable: Buffer.from([1, 0x81, 8, 1, 0x88, 5]).toString('base64'), sections: [{ type: 17, length: s17.length, data: s17.toString('base64') }] },
         ] } }));
     });
+    // fake application database: one virtual device (type 256) with 8 flags, object #474 on flag 0, #9 deleted
+    const appTables = {
+        devices: [{ id: 30, mac: 0x11001001, typ_urzadzenia: 256, nazwa_urzadzenia: 'Urządzenie wirtualne', data: '{"type":0,"sf":[{"key":3,"val":8}]}' },
+            { id: 1, mac: 0x1a2b, typ_urzadzenia: 62, nazwa_urzadzenia: 'Salon' }],
+        objects: [{ id: 474, leafId: '0_11001001_3_0_0', opis_menu: 'Virt flag 0', params: 0, prawa: '7fffffffffffffff' },
+            { id: 9, leafId: '0_11001001_3_0_1', opis_menu: 'Old', params: 16, prawa: '7fffffffffffffff' }],
+    };
+    ext.subscribe('ampio/control/admin/config');
+    ext.on('message', (t, p) => {
+        if (t === 'ampio/control/admin/config' && appTables[p.toString()]) {
+            ext.publish('ampio/fromDB/admin/config/' + p, JSON.stringify({ List: appTables[p.toString()] }));
+        }
+    });
     ext.subscribe('device_api/to/list');
     ext.publish('ampio/from/5555/state/f/1', '0', { retain: true });
     ext.publish('ampio/from/5555/state/f/3', '1', { retain: true });
@@ -182,11 +195,32 @@ async function integrationTests(s17) {
     ok(lf && JSON.stringify(lf.indexes) === '[1,3]' && lf.names[3] === 'Obecność', 'discovery legacy types, indexes and names');
     ok(legacy && legacy.legacyTypes.some(x => x.valtype === 'rs'), 'discovery legacy zone type');
     ok((keep.sent || []).length === before, 'discovery does not re-trigger IN nodes');
+    const virt = res.body && res.body.find(x => x.mac === '11001001');
+    ok(virt && virt.app === true && virt.virtual === true && virt.leafs.length === 1 && virt.leafs[0].type === 3 && virt.leafs[0].count === 8 &&
+        virt.leafs[0].names[0] === 'Virt flag 0' && JSON.stringify(virt.leafs[0].objects) === '{"0":[474]}', 'discovery lists application virtual devices ' + JSON.stringify(virt));
+    ok(res.body.filter(x => x.mac === '1a2b').length === 1, 'application devices table does not duplicate modules');
+
+    // IN on an application virtual device: object state published once per app user, passed on once
+    const inApp = mk('Ampio v2 IN', { id: 'inApp', server: 'cfg', mac: '11001001', devtype: '3', attribute: '0', index: '0', source: 'app' });
+    const inGone = mk('Ampio v2 IN', { id: 'inGone', server: 'cfg', mac: '11001001', devtype: '3', attribute: '0', index: '1', source: 'app' });
+    await wait(600);
+    ok(inApp._status && inApp._status.text === 'object #474', 'app IN finds its object: ' + JSON.stringify(inApp._status));
+    for (const user of ['agontarek', 'ipad', 'admin']) {
+        ext.publish('ampio/fromDB/' + user + '/ob/474/state', '{"state":"1", "on": 1794929336405, "fallback": true}');
+    }
+    ext.publish('ampio/fromDB/admin/ob/474/state', '{ "state": "0" , "on": 1794929336999} ');
+    ext.publish('ampio/fromDB/admin/ob/475/state', '{"state":"1", "on": 1794929337000}');
+    await wait(300);
+    ok(inApp.sent && inApp.sent.length === 2 && inApp.sent[0].payload === 1 && inApp.sent[1].payload === 0 && inApp.sent[0].object === 474 &&
+        inApp.sent[0].mac === '11001001' && inApp.sent[0].devtype === 3 && inApp.sent[0].index === 0, 'app IN passes each change once ' + JSON.stringify(inApp.sent));
+    ok(!inGone.sent && /no application object/.test(inGone._status.text) && inGone.warns && inGone.warns.length === 1, 'app IN without a (not deleted) object warns');
+    await new Promise(r => inApp.emit('close', true, r));
+    await new Promise(r => inGone.emit('close', true, r));
 
     // audit: names from discovery, retained only seeds, repeats skipped, legacy duplicates of device/v1 skipped
     const audit = mk('Ampio v2 Audit', { id: 'audit', server: 'cfg', source: 'auto', onlychanges: true, retained: false });
     await wait(1500);
-    ok(audit._status && audit._status.text === 'listening, 2 devices', 'audit discovers devices: ' + (audit._status && audit._status.text));
+    ok(audit._status && audit._status.text === 'listening, 3 devices', 'audit discovers devices: ' + (audit._status && audit._status.text));
     ext.publish('device/v1/state/leaf/1a2b/129/0/1', '{"v":1}');
     ext.publish('device/v1/state/leaf/1a2b/129/0/1', '{"v":1}');
     ext.publish('ampio/from/5555/state/f/3', '0');

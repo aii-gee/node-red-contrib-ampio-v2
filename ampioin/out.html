@@ -260,6 +260,10 @@
                             Devices = {};
                             Order = [];
                             data.forEach(function(dev){
+                                // virtual devices of the mobile application are set through the M-SERV API, not MQTT
+                                if(dev.app){
+                                    return;
+                                }
                                 Devices[dev.mac] = dev;
                                 Order.push(dev.mac);
                             });

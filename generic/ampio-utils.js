@@ -693,3 +693,111 @@ exports.legacy_on_v1 = function (dev, valtype) {
     const types = LEGACY_ON_V1[valtype];
     return !!(dev && !dev.legacy && types && dev.leafs.some(function (l) { return types.indexOf(l.type) !== -1; }));
 }
+
+// ---- Virtual devices of the mobile application (device type 256, added in Designer) ----
+// They are not on CAN and not on device/v1: their values are set through the M-SERV API
+// (/api/set/<object>/setVirtualValue/<value>) and published only as states of application objects,
+// on ampio/fromDB/<app user>/ob/<object id>/state, once per application user, not retained.
+// An object belongs to a channel through its leafId 0_<mac>_<type>_<attribute>_<index>.
+exports.APP_VIRTUAL_TYPE = 256;
+const APP_DELETED = 16;
+
+exports.app_leaf_id = function (mac, type, attribute, index) {
+    return ['0', String(mac).toLowerCase(), type, attribute, index].join('_');
+}
+
+exports.app_state_topic = function (objectId) {
+    return 'ampio/fromDB/+/ob/' + objectId + '/state';
+}
+
+// Deleted the Designer's way: the DELETED bit (params can exceed 32 bits) or visible to nobody
+function app_object_deleted(o) {
+    return Math.floor(Number(o.params) / APP_DELETED) % 2 === 1 || o.prawa === '0';
+}
+
+function parse_app_leaf(leafId) {
+    const p = String(leafId || '').split('_');
+    if (p.length !== 5) {
+        return null;
+    }
+    return {mac: p[1].toLowerCase(), type: Number(p[2]), attribute: Number(p[3]), index: Number(p[4])};
+}
+
+// ids of the (not deleted) application objects of one channel
+exports.app_object_ids = function (appObjects, mac, type, attribute, index) {
+    const leafId = exports.app_leaf_id(mac, type, attribute, index);
+    return (appObjects || []).filter(function (o) {
+        return !app_object_deleted(o) && String(o.leafId || '').toLowerCase() === leafId;
+    }).map(function (o) { return o.id; });
+}
+
+// payload of an object state ({"state":"1","desc":"...","on":<ms>}) -> {value, desc, on}
+// numeric states become numbers
+exports.decode_app_state = function (payload) {
+    const data = JSON.parse(payload.toString());
+    if (!data || typeof data !== 'object' || !data.hasOwnProperty('state')) {
+        throw new Error('no state');
+    }
+    const s = data.state;
+    const value = typeof s === 'string' && s.trim() !== '' && !isNaN(s) ? Number(s) : s;
+    return {value: value, desc: data.desc, on: data.on};
+}
+
+// Application devices table + objects table -> discover_devices() entries of the virtual devices:
+// channel types and counts from the device's data.sf ([{key: type, val: count}]), plus types its objects use;
+// names and object ids per channel from its objects
+exports.app_virtual_devices = function (appDevices, appObjects) {
+    const objects = {};
+    (appObjects || []).forEach(function (o) {
+        const leaf = !app_object_deleted(o) && parse_app_leaf(o.leafId);
+        if (leaf) {
+            (objects[leaf.mac] = objects[leaf.mac] || []).push({leaf: leaf, o: o});
+        }
+    });
+    return (appDevices || []).filter(function (d) {
+        return Number(d.typ_urzadzenia) === exports.APP_VIRTUAL_TYPE && d.mac;
+    }).map(function (d) {
+        const mac = Number(d.mac).toString(16);
+        const counts = {};
+        let data = {};
+        try {
+            data = typeof d.data === 'string' ? JSON.parse(d.data) : (d.data || {});
+        } catch {
+            // channels still come from the objects
+        }
+        (data.sf || []).forEach(function (f) {
+            counts[f.key] = Math.max(counts[f.key] || 0, Number(f.val) || 0);
+        });
+        const leafs = {};
+        function leaf(type, attribute) {
+            const k = type + '/' + attribute;
+            return leafs[k] = leafs[k] || {type: type, attribute: attribute, count: counts[type] || 0, names: {}, objects: {}};
+        }
+        Object.keys(counts).forEach(function (type) { leaf(Number(type), 0); });
+        (objects[mac] || []).forEach(function (x) {
+            const l = leaf(x.leaf.type, x.leaf.attribute);
+            l.count = Math.max(l.count, x.leaf.index + 1);
+            l.names[x.leaf.index] = l.names[x.leaf.index] || x.o.opis_menu || '';
+            (l.objects[x.leaf.index] = l.objects[x.leaf.index] || []).push(x.o.id);
+        });
+        return {
+            mac: mac,
+            name: d.nazwa_urzadzenia || 'Virtual device',
+            legacy: false,
+            virtual: true,
+            app: true,
+            leafs: Object.keys(leafs).map(function (k) { return leafs[k]; }).sort(function (a, b) {
+                return a.type - b.type || a.attribute - b.attribute;
+            }),
+            legacyTypes: []
+        };
+    });
+}
+
+// adds the application's virtual devices to a discover_devices() list (devices already there are kept)
+exports.merge_app_devices = function (devices, appDevices, appObjects) {
+    const known = {};
+    devices.forEach(function (d) { known[d.mac] = true; });
+    const extra = exports.app_virtual_devices(appDevices, appObjects).filter(function (d) { return !known[d.mac]; });
+    return devices.concat(extra).sort(function (a, b) { return a.mac < b.mac ? -1 : (a.mac > b.mac ? 1 : 0); });
+}

@@ -15,6 +15,8 @@
             index: {value:0, required:true, validate:RED.validators.number()},
             name: {value:""},
             retainignore: {value:false},
+            // 'app' = virtual device of the mobile application, read through its objects' states
+            source: {value:""},
             server: {type:"ampiov2config", required:true}
         },
         inputs:0,
@@ -131,6 +133,8 @@
             }
             function TypeChanged(){
                 const s = selected();
+                const dev = device();
+                $('#node-input-source').val(dev && dev.app ? 'app' : '');
                 $('#node-input-valtype').val(s.legacy ? s.type : '');
                 $('#node-input-devtype').val(s.legacy ? '' : (isNaN(s.type) ? '' : s.type));
                 $('#ampio-attribute-row').toggle(!s.legacy);
@@ -172,6 +176,11 @@
                 }, node.index, keep);
                 FillHints();
             }
+            // application objects of a channel of a virtual application device
+            function appObjects(type, attr, index){
+                const leaf = (leafs() || []).find(function(x){ return x.type === type && x.attribute === attr; });
+                return leaf && leaf.objects && leaf.objects[index] || [];
+            }
             // topic this node will use, same rules as generic/ampio-utils.js
             function topicFor(s, mac, attr, index){
                 if(!mac || s.type === '' || (!s.legacy && isNaN(s.type))){
@@ -185,6 +194,11 @@
                     return ACCESS === 'R'
                         ? 'ampio/from/' + mac.toUpperCase() + '/state/' + s.type + '/' + index
                         : 'ampio/to/' + mac.toUpperCase() + '/' + set + '/' + index + '/cmd';
+                }
+                const dev = Devices[mac];
+                if(dev && dev.app){
+                    const ids = appObjects(s.type, attr, index);
+                    return ids.length ? ids.map(function(id){ return 'ampio/fromDB/+/ob/' + id + '/state'; }).join(', ') : '';
                 }
                 return 'device/v1/' + (ACCESS === 'R' ? 'state' : 'set') + '/leaf/' + mac + '/' + s.type + '/' + attr + '/' + index;
             }
@@ -234,6 +248,14 @@
                 if(topic){
                     line('Topic', topic, true);
                 }
+                const dev = device();
+                if(dev && dev.app && !s.legacy){
+                    const ids = appObjects(s.type, attr, Number(index));
+                    line('Leaf', '0_' + mac + '_' + s.type + '_' + attr + '_' + index, true);
+                    line('Application', ids.length
+                        ? 'virtual device: values set through the M-SERV API (/api/set/' + ids[0] + '/setVirtualValue/<value>) are read from object' + (ids.length > 1 ? 's ' : ' ') + ids.map(function(id){ return '#' + id; }).join(', ') + '; the value arrives on its first change after deploy'
+                        : 'virtual device: no application object uses this channel yet. Add one in Ampio Designer (Application) with this leaf, values are read from its state');
+                }
                 if(s.legacy){
                     line('Legacy API', raw
                         ? 'payload is sent as hex bytes, ex. "0901"; frames are described in Ampio CAN documentation'
@@ -271,7 +293,7 @@
                             // Order keeps server order, object keys would put numeric-looking MACs first
                             Order.forEach(function(mac){
                                 const dev = Devices[mac];
-                                $('<option>').val(mac).text(mac + (dev.name ? ' (' + dev.name + ')' : '') + (dev.legacy ? ' - legacy' : '') + (dev.virtual ? ' - virtual' : '')).appendTo(sel);
+                                $('<option>').val(mac).text(mac + (dev.name ? ' (' + dev.name + ')' : '') + (dev.legacy ? ' - legacy' : '') + (dev.app ? ' - application' : (dev.virtual ? ' - virtual' : ''))).appendTo(sel);
                             });
                             if(node.mac){
                                 sel.val(node.mac);
@@ -312,12 +334,14 @@
         Click <i class="fa fa-search"></i> to load devices from the server. A new or changed server config has to be <b>deployed</b> first.
         Devices marked <i>legacy</i> are older CAN modules available only through the legacy API.
         Devices marked <i>virtual</i> are published by a module on behalf of a connected system (Satel, Modbus slaves).
+        Devices marked <i>application</i> are virtual devices of the mobile application, read through its objects.
     </div>
     <div class="form-row">
         <label for="ampio-type"><i class="icon-tag"></i> Type</label>
         <select id="ampio-type" style="width: 70%;"></select>
         <input type="hidden" id="node-input-devtype">
         <input type="hidden" id="node-input-valtype">
+        <input type="hidden" id="node-input-source">
     </div>
     <div class="form-row" id="ampio-attribute-row">
         <label for="node-input-attribute"><i class="icon-tag"></i> Attribute</label>
@@ -373,6 +397,12 @@
        the server does not publish them on the new API, they are read through the legacy API.
        Devices marked <i>virtual</i> are published by a module for a connected system under their own MAC: Satel inputs, outputs and zones (ex. <code>3115d6c</code>, names from the Satel configuration)
        and Modbus slaves of M-CON-485 (values as <code>167 - I32 generic</code>, one index per slot).</p>
+    <p>Devices marked <i>application</i> are virtual devices added in Ampio Designer (device type 256, ex. <code>11001001</code>).
+       They are not on CAN: their values are set through the M-SERV API, <code>/api/set/&lt;object id&gt;/setVirtualValue/&lt;value&gt;</code>,
+       and the server publishes them only as states of the application objects bound to the channel (leaf <code>0_&lt;mac&gt;_&lt;type&gt;_&lt;attribute&gt;_&lt;index&gt;</code>).
+       The node looks up these objects when it starts and listens to <code>ampio/fromDB/+/ob/&lt;object id&gt;/state</code>;
+       a channel needs at least one application object. The state is not retained, so the first value arrives on the first change after deploy.
+       <code>msg.object</code> is the object id and <code>msg.desc</code> the text the application shows. <code>setValue</code> sends a CAN frame that no module answers: use <code>setVirtualValue</code>.</p>
     <h4>Type</h4>
     <p>The <i>device/v1</i> group lists channel types the device has (ex. Relay, Blind, AC dimmer, Binary Flag); types with nothing to read are hidden.
        The <i>Legacy (ampio/...)</i> group lists value types of the legacy API the device publishes:</p>
