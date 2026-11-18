@@ -1,0 +1,373 @@
+<script type="text/javascript">
+    RED.nodes.registerType('Ampio v2 API',{
+        category: 'Ampio v2',
+        color: '#d4d9db',
+        defaults: {
+            name: {value:""},
+            server: {type:"ampiov2config", required:true},
+            port: {value:8060, required:true, validate:RED.validators.number()},
+            operation: {value:"GET /api/set/{id_dev}/{function}/{value}"},
+            params: {value:{function: "setVirtualValue"}}
+        },
+        inputs:1,
+        outputs:1,
+        icon: "face.png",
+        label: function() {
+            if(this.name){
+                return this.name;
+            }
+            const p = this.params || {};
+            if(p.function){
+                return 'Ampio API ' + (p.id_dev ? '#' + p.id_dev + ' ' : '') + p.function;
+            }
+            if(!this.operation){
+                return 'Ampio v2 API';
+            }
+            // short name of the operation, same rules as generic/ampio-api.js short_name
+            const m = /^(\w+) (.*)$/.exec(this.operation) || [null, 'GET', this.operation];
+            let s = m[2].replace(/^\/api\//, '');
+            let suffix = '';
+            if(/^xml\//.test(s)){
+                s = s.slice(4);
+                suffix = ' (xml)';
+            } else {
+                s = s.replace(/^json\//, '');
+            }
+            s = s.replace(/\{([^}]+)\}/g, function(x, name){ return /^id|id$|Id$/.test(name) ? '{ID}' : x; });
+            return 'Ampio API (' + m[1] + ') ' + s + suffix;
+        },
+        paletteLabel: 'Ampio v2 API',
+        oneditprepare: function(){
+            const node = this;
+            // parameters naming an application object get the object autocomplete
+            const OBJECT_PARAMS = ['id_dev', 'object_id', 'objectId'];
+            const PAYLOAD_PARAMS = ['value', 'text', 'message'];
+            let Ops = [];
+            let Objects = [];
+            const values = Object.assign({}, node.params || {});
+
+            function op(){
+                const id = $('#node-input-operation').val();
+                return Ops.find(function(o){ return o.id === id; });
+            }
+            // keep what was typed for parameters shared between operations (ex. id_dev)
+            function collect(){
+                $('#ampio-api-params [data-param]').each(function(){
+                    const v = $(this).val();
+                    if(v === '' || v === null){
+                        delete values[$(this).attr('data-param')];
+                    } else {
+                        values[$(this).attr('data-param')] = v;
+                    }
+                });
+            }
+            function payloadParam(o){
+                return o.body ? null : (o.params.map(function(p){ return p.name; }).find(function(n){ return PAYLOAD_PARAMS.indexOf(n) !== -1; }) || null);
+            }
+            function objectLabel(o){
+                return '#' + o.id + ' ' + o.name + (o.type ? ' (' + o.type + ')' : '');
+            }
+            // name of the object typed in an object field, shown next to it
+            function ShowObject(input){
+                const hint = input.siblings('.ampio-api-object');
+                const v = String(input.val() || '').trim();
+                const o = Objects.find(function(x){ return String(x.id) === v; });
+                hint.text(o ? o.name : (v && Objects.length && /^\d+$/.test(v) ? 'not found' : ''));
+            }
+            // Node-RED autoComplete (https://nodered.org/docs/api/ui/autoComplete/): search(value) returns
+            // [{value, label}]. Matches by id prefix or by the words of the name / type; sorted like the docs
+            // example by where the match starts (i), id matches first. Labels show the match in bold.
+            function searchObjects(value){
+                const q = value.trim().toLowerCase().replace(/^#/, '');
+                if(!q){
+                    return [];
+                }
+                const words = q.split(/\s+/).filter(Boolean);
+                const matches = [];
+                Objects.forEach(function(o){
+                    const text = objectLabel(o);
+                    if(String(o.id).indexOf(q) === 0){
+                        // "#<id>": the id starts at 1
+                        return matches.push({value: String(o.id), label: highlight(text, 1, q.length), i: -1});
+                    }
+                    const lower = text.toLowerCase();
+                    const start = String(o.id).length + 2;
+                    if(words.every(function(w){ return lower.indexOf(w, start) !== -1; })){
+                        // the whole phrase before matches of separate words
+                        const phrase = lower.indexOf(q, start);
+                        const at = phrase !== -1 ? phrase : lower.indexOf(words[0], start);
+                        matches.push({value: String(o.id), label: highlight(text, at, phrase !== -1 ? q.length : words[0].length), i: phrase !== -1 ? at : 1000 + at});
+                    }
+                });
+                matches.sort(function(A, B){ return A.i - B.i || Number(A.value) - Number(B.value); });
+                return matches.slice(0, 50);
+            }
+            // label element: text with characters [from, from + length) in bold
+            function highlight(text, from, length){
+                const div = $('<div/>', {style: "white-space:nowrap"});
+                $('<span/>').text(text.slice(0, from)).appendTo(div);
+                $('<span/>', {style: "font-weight: bold"}).text(text.slice(from, from + length)).appendTo(div);
+                $('<span/>').text(text.slice(from + length)).appendTo(div);
+                return div;
+            }
+            function FillParams(){
+                const o = op();
+                const box = $('#ampio-api-params').empty();
+                if(!o){
+                    return;
+                }
+                o.params.forEach(function(p){
+                    const row = $('<div class="form-row">').appendTo(box);
+                    $('<label>').attr('for', 'ampio-api-p-' + p.name).attr('title', p.description)
+                        .html('<i class="fa fa-angle-right"></i> ' + p.name + (p.required ? ' *' : '')).appendTo(row);
+                    const from = 'msg.params.' + p.name + ' / msg.' + p.name + (p.name === payloadParam(o) ? ' / msg.payload' : '');
+                    let input;
+                    if(p.enum){
+                        input = $('<select>').css('width', '70%');
+                        $('<option>').val('').text('(from ' + from + ')').appendTo(input);
+                        p.enum.forEach(function(v){ $('<option>').val(v).text(v).appendTo(input); });
+                    } else if(OBJECT_PARAMS.indexOf(p.name) !== -1){
+                        input = $('<input type="text">').css('width', '120px').attr('placeholder', 'name or id');
+                        input.autoComplete({search: searchObjects});
+                        input.on('change keyup', function(){ ShowObject(input); });
+                    } else {
+                        input = $('<input type="text">').css('width', '70%').attr('placeholder', from);
+                    }
+                    input.attr('id', 'ampio-api-p-' + p.name).attr('data-param', p.name).attr('title', p.description).appendTo(row);
+                    input.val(values[p.name] !== undefined ? values[p.name] : '');
+                    if(OBJECT_PARAMS.indexOf(p.name) !== -1){
+                        $('<span class="ampio-api-object">').css({'margin-left': '8px', 'font-style': 'italic'}).appendTo(row);
+                        ShowObject(input);
+                    }
+                });
+                if(o.body){
+                    $('<div class="form-tips">').html('Body: <code>msg.payload</code> as JSON').appendTo(box);
+                }
+            }
+            // application objects of the server, for the object fields; loaded when the dialog opens
+            function LoadObjects(){
+                const cfgid = $('#node-input-server').val();
+                if(!cfgid || cfgid === '_ADD_'){
+                    return;
+                }
+                $.getJSON('ampio-v2-api/' + cfgid + '/objects', {port: $('#node-input-port').val()}).done(function(objects){
+                    Objects = objects;
+                    $('#ampio-api-params input[data-param]').each(function(){ ShowObject($(this)); });
+                }).fail(function(xhr){
+                    Objects = [];
+                    RED.notify("Ampio API: application objects not loaded (" + (xhr.responseJSON || xhr.status) + ")", "warning");
+                });
+            }
+
+            $.getJSON('ampio-v2-api/operations', function(ops){
+                Ops = ops;
+                const sel = $('#node-input-operation').empty();
+                const groups = {};
+                ops.forEach(function(o){
+                    const g = groups[o.tag] = groups[o.tag] || $('<optgroup>').attr('label', o.tag || 'Other').appendTo(sel);
+                    $('<option>').val(o.id).text(o.name).attr('title', o.summary + ' - ' + o.method + ' ' + o.path).appendTo(g);
+                });
+                sel.val(node.operation);
+                FillParams();
+            });
+            $('#node-input-operation').on('change', function(){
+                collect();
+                FillParams();
+            });
+            $('#node-input-server, #node-input-port').on('change', LoadObjects);
+            LoadObjects();
+        },
+        oneditsave: function(){
+            const params = {};
+            $('#ampio-api-params [data-param]').each(function(){
+                const v = $(this).val();
+                if(v !== '' && v !== null){
+                    params[$(this).attr('data-param')] = v;
+                }
+            });
+            this.params = params;
+        }
+    });
+</script>
+
+<script type="text/x-red" data-template-name="Ampio v2 API">
+    <div class="form-row">
+        <label for="node-input-server"><i class="icon-tag"></i> Server</label>
+        <input type="text" id="node-input-server">
+    </div>
+    <div class="form-row">
+        <label for="node-input-port"><i class="icon-tag"></i> API port</label>
+        <input type="text" id="node-input-port" style="width: 80px;">
+    </div>
+    <div class="form-row">
+        <label for="node-input-operation"><i class="icon-tag"></i> Operation</label>
+        <select id="node-input-operation" style="width: 70%;"></select>
+    </div>
+    <div id="ampio-api-params"></div>
+    <div class="form-row">
+        <label for="node-input-name"><i class="icon-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+    <div class="form-tips">Operations, parameters and functions are described in the node help.</div>
+</script>
+
+<script type="text/x-red" data-help-name="Ampio v2 API">
+    <p>Calls the HTTP API of the Ampio server (M-SERV): controls mobile application objects, runs scenes, sends events and notifications,
+       reads devices, groups, scenes, states and the logbook. Operations come from the OpenAPI document of Ampio Designer ("Ampio API").</p>
+
+    <h3>Inputs</h3>
+    <dl class="message-properties">
+        <dt class="optional">params <span class="property-type">object</span></dt>
+        <dd>parameter values, ex. <code>{"id_dev": 474, "function": "setVirtualValue", "value": 1}</code>; they override the node settings.</dd>
+        <dt class="optional">payload <span class="property-type">any</span></dt>
+        <dd>value of a <code>value</code>, <code>text</code> or <code>message</code> parameter set neither in the node nor in <code>msg</code>;
+            the JSON body of POST operations (PIN lists).</dd>
+        <dt class="optional">id_dev, function, ... <span class="property-type">string | number</span></dt>
+        <dd>any parameter as a <code>msg</code> property, used when the node does not set it.</dd>
+        <dt class="optional">operation <span class="property-type">string</span></dt>
+        <dd>operation to call instead of the node setting, ex. <code>GET /api/run/scene/{scene_id}</code>.</dd>
+    </dl>
+
+    <h3>Outputs</h3>
+    <dl class="message-properties">
+        <dt>payload <span class="property-type">object | string</span></dt>
+        <dd>JSON answers parsed (ex. <code>{"List": [...]}</code>); control calls give the text of <code>&lt;Response&gt;</code>, <code>"OK"</code>; other XML as text.</dd>
+        <dt>statusCode <span class="property-type">number</span></dt>
+        <dd>HTTP status.</dd>
+        <dt>url <span class="property-type">string</span></dt>
+        <dd>URL called (without credentials).</dd>
+    </dl>
+    <p>An answer other than <code>OK</code> (ex. <code>BAD REQUEST</code>, <code>DEVICE_DOES_NOT_EXISTS</code>), an HTTP error or no answer in 10 s
+       is reported as an error of the node (Catch node).</p>
+
+    <h3>Details</h3>
+    <h4>Server</h4>
+    <p>The host of the Ampio v2 Config node (local socket: this M-SERV, <code>127.0.0.1</code>) on the API port (default 8060),
+       with the user and password of the config node.</p>
+    <h4>Parameters</h4>
+    <p>Values are taken in this order: <code>msg.params.&lt;name&gt;</code>, the node setting, <code>msg.&lt;name&gt;</code>,
+       and for <code>value</code> / <code>text</code> / <code>message</code> <code>msg.payload</code>. Values are URL encoded.
+       Hover a parameter name for its description.</p>
+    <h4>Objects</h4>
+    <p><code>id_dev</code> / <code>object_id</code> / <code>objectId</code> is the id of a <b>mobile application object</b> (Designer, Application tab),
+       not a CAN MAC. The objects of the server are loaded when the edit dialog opens (the server config has to be deployed):
+       type a part of the name or the id and pick the object, its name is shown next to the field.</p>
+    <h4>Virtual devices</h4>
+    <p><code>setVirtualValue</code> sets the state of an object of a virtual device of the application (device type 256, ex. <code>11001001</code>);
+       Ampio v2 IN reads it. <code>setValue</code> writes to the CAN module of the object, a virtual device has none.</p>
+    <h4>State</h4>
+    <p>The state endpoints (<code>state</code>, <code>state2</code>) return empty values for many objects; <i>List of devices</i>
+       (<code>/api/json/devices</code>) has the current state of every object in <code>stan_json</code>.</p>
+
+    <h3>Example</h3>
+    <p>Operation <i>Function to control device with one value</i>, <code>id_dev</code> 474, <code>function</code> setVirtualValue, value empty:
+       <code>msg.payload = 1</code> calls <code>GET /api/set/474/setVirtualValue/1</code> and outputs <code>payload: "OK"</code>.</p>
+
+    <!-- operations:start -->
+    <h3>Operations</h3>
+    <p>From the "Ampio API" OpenAPI document 1.0.4 of Ampio Designer. <code>*</code> required.</p>
+    <h4>Groups</h4>
+    <dl class="message-properties">
+        <dt>(GET) groups <span class="property-type">GET /api/json/groups</span></dt>
+        <dd>List of groups<br>The Groups endpoint returns information about the Ampio Smart Home groups. The response includes the name and other details about each group.</dd>
+        <dt>(GET) group_devices <span class="property-type">GET /api/json/group_devices</span></dt>
+        <dd>List of all group-device relations<br>Returns all relations mapping devices to their groups.</dd>
+        <dt>(GET) group_devices/{ID} <span class="property-type">GET /api/json/group_devices/{id_group}</span></dt>
+        <dd>List of devices for a selected group id<br>Returns information about devices belonging to a specific group.<br><code>id_group*</code> ID of the group</dd>
+        <dt>(GET) groups (xml) <span class="property-type">GET /api/xml/groups</span></dt>
+        <dd>List of groups<br>The Groups endpoint returns information about the Ampio Smart Home groups. The response includes the name and other details about each group.</dd>
+        <dt>(GET) group_devices (xml) <span class="property-type">GET /api/xml/group_devices</span></dt>
+        <dd>List of all group-device relations<br>Returns all relations mapping devices to their groups.</dd>
+        <dt>(GET) group_devices/{ID} (xml) <span class="property-type">GET /api/xml/group_devices/{id_group}</span></dt>
+        <dd>List of devices for a selected group id<br>Returns information about devices belonging to a specific group.<br><code>id_group*</code> ID of the group</dd>
+    </dl>
+    <h4>Devices</h4>
+    <dl class="message-properties">
+        <dt>(GET) devices <span class="property-type">GET /api/json/devices</span></dt>
+        <dd>List of devices<br>The Devices endpoint returns information about the Ampio Smart Home connected devices. The response includes the name and other details about each device.</dd>
+        <dt>(GET) devices/{dev_type} <span class="property-type">GET /api/json/devices/{dev_type}</span></dt>
+        <dd>List of devices with specified type<br>The Devices endpoint returns information about connected devices with a specified type, for example: <code>/api/json/devices/led</code>.<br><code>dev_type*</code> Type of device to filter by: <code>led</code>, <code>rgb</code>, <code>wej</code>, <code>temp</code>, <code>reg</code>, <code>przekaznik</code>, <code>roleta</code>, <code>flaga</code>, <code>satel_wej</code>, <code>satel_alarm</code>, <code>moc_ciagla</code></dd>
+        <dt>(GET) devs_detail <span class="property-type">GET /api/json/devs_detail</span></dt>
+        <dd>List of devices with details<br>The Devices endpoint returns information about the Ampio Smart Home connected devices with details. The response includes the name and other details about each device.</dd>
+        <dt>(GET) devices (xml) <span class="property-type">GET /api/xml/devices</span></dt>
+        <dd>List of devices<br>The Devices endpoint returns information about the Ampio Smart Home connected devices. The response includes the name and other details about each device.</dd>
+        <dt>(GET) devices/{dev_type} (xml) <span class="property-type">GET /api/xml/devices/{dev_type}</span></dt>
+        <dd>List of devices with specified type<br>The Devices endpoint returns information about connected devices with a specified type, for example: <code>/api/xml/devices/led</code>.<br><code>dev_type*</code> Type of device to filter by: <code>led</code>, <code>rgb</code>, <code>wej</code>, <code>temp</code>, <code>reg</code>, <code>przekaznik</code>, <code>roleta</code>, <code>flaga</code>, <code>satel_wej</code>, <code>satel_alarm</code>, <code>moc_ciagla</code></dd>
+        <dt>(GET) devs_detail (xml) <span class="property-type">GET /api/xml/devs_detail</span></dt>
+        <dd>List of devices with details<br>The Devices endpoint returns information about the Ampio Smart Home connected devices with details. The response includes the name and other details about each device.</dd>
+        <dt>(POST) device/{ID}/addPinList <span class="property-type">POST /api/json/device/{object_id}/addPinList</span></dt>
+        <dd>Add a list of pins or cards for a device<br>This endpoint allows you to add a list of pins or cards to a specific device in the Ampio Smart Home system.<br><code>object_id*</code> The ID of the object (device)<br>Body: <code>msg.payload</code> as JSON.</dd>
+        <dt>(POST) device/{ID}/savePinList <span class="property-type">POST /api/json/device/{object_id}/savePinList</span></dt>
+        <dd>Save a list of pins or cards for a device<br>This endpoint allows you to save a list of pins or cards to a specific device in the Ampio Smart Home system. (This overwrites the existing list)<br><code>object_id*</code> The ID of the object (device)<br>Body: <code>msg.payload</code> as JSON.</dd>
+    </dl>
+    <h4>State</h4>
+    <dl class="message-properties">
+        <dt>(GET) device/{ID}/state <span class="property-type">GET /api/json/device/{id_dev}/state</span></dt>
+        <dd>State of device with id (Old)<br>Returns information about the state of selected device. (DEPRECATED: Use <code>state2</code> for new applications).<br><code>id_dev*</code> ID of the device</dd>
+        <dt>(GET) device/{ID}/state2 <span class="property-type">GET /api/json/device/{id_dev}/state2</span></dt>
+        <dd>State of device with id<br>Returns information about the state of selected device in the new format.<br><code>id_dev*</code> ID of the device</dd>
+        <dt>(GET) logbook/{type}/{objectType}/{fromTime}/{toTime}/{ID}/{requestSize}/{requestOffset} <span class="property-type">GET /api/json/logbook/{type}/{objectType}/{fromTime}/{toTime}/{objectId}/{requestSize}/{requestOffset}</span></dt>
+        <dd>Get logbook data<br>Return logbook with given type and other parameters<br><code>type*</code> Type of logbook data: 0-today, 1-last 24h, 2-last 7d, 3-last month, 4-last 3m, 5-last year, 6-fromTime to toTime<br><code>objectType*</code> Type of the object: 0-all, 43-events<br><code>fromTime*</code> Start time in Unix epoch format<br><code>toTime*</code> End time in Unix epoch format<br><code>objectId*</code> ID of the object<br><code>requestSize*</code> Size of the request<br><code>requestOffset*</code> Offset of the request</dd>
+        <dt>(GET) device/{ID}/signal <span class="property-type">GET /api/json/device/{id_dev}/signal</span></dt>
+        <dd>Signal of RF device with id<br>Returns information about the signal of selected RF device.<br><code>id_dev*</code> ID of the device</dd>
+        <dt>(GET) device/{ID}/getsignal <span class="property-type">GET /api/json/device/{id_dev}/getsignal</span></dt>
+        <dd>Request signal update for RF device<br>The request gets information about the signal of selected RF device. To check the value, call the <code>signal</code> endpoint after this.<br><code>id_dev*</code> ID of the device</dd>
+        <dt>(GET) device/{ID}/state (xml) <span class="property-type">GET /api/xml/device/{id_dev}/state</span></dt>
+        <dd>State of device with id (Old)<br>Returns information about the state of selected device. (DEPRECATED: Use <code>state2</code> for new applications).<br><code>id_dev*</code> ID of the device</dd>
+        <dt>(GET) device/{ID}/state2 (xml) <span class="property-type">GET /api/xml/device/{id_dev}/state2</span></dt>
+        <dd>State of device with id<br>Returns information about the state of selected device in the new format.<br><code>id_dev*</code> ID of the device</dd>
+        <dt>(GET) device/{ID}/signal (xml) <span class="property-type">GET /api/xml/device/{id_dev}/signal</span></dt>
+        <dd>Signal of RF device with id<br>Returns information about the signal of selected RF device.<br><code>id_dev*</code> ID of the device</dd>
+        <dt>(GET) device/{ID}/getsignal (xml) <span class="property-type">GET /api/xml/device/{id_dev}/getsignal</span></dt>
+        <dd>Request signal update for RF device<br>The request gets information about the signal of selected RF device. To check the value, call the <code>signal</code> endpoint after this.<br><code>id_dev*</code> ID of the device</dd>
+    </dl>
+    <h4>Control</h4>
+    <dl class="message-properties">
+        <dt>(GET) set/{ID}/{function} <span class="property-type">GET /api/set/{id_dev}/{function}</span></dt>
+        <dd>Function to control device (no value)<br>Control a device with a simple function that does not require a value. Example: <code>/api/set/1/turnOn</code>.<br><code>id_dev*</code> ID of the device<br><code>function*</code> Function to perform on the device: <code>turnOn</code>, <code>turnOff</code>, <code>open</code>, <code>close</code>, <code>stop</code>, <code>switch</code>, <code>setFlux</code>, <code>captureImage</code></dd>
+        <dt>(GET) set/{ID}/{function}/{value} <span class="property-type">GET /api/set/{id_dev}/{function}/{value}</span></dt>
+        <dd>Function to control device with one value<br>Control a device with a function that requires a single value. Example: <code>/api/set/1/setValue/200</code>.<br>List of functions:<br>- <code>setValue</code> (0-255)<br>- <code>setColor</code> (24-bit integer: <code>0xBBGGRR</code>)<br>- <code>setTemperature</code> (desired temperature, e.g., '21.5')<br>- <code>setVolume</code> (0-100 or 0-255, depending on device type)<br>- <code>setInput</code> (input index or name, e.g., '1', '40', 'line-in', 'hdmi1')<br>- <code>setSeek</code> (value 0-255)<br>- <code>setText</code> (string value)<br>- <code>setHeatingMode</code> (string: 'A' (Auto), 'S' (Standby), 'M' (Manual), 'H' (Holiday) for heating; or 'auto', 'cool', 'heat', 'fan' for AC)<br>- <code>setHeatingType</code> (0 for heating, 1 for cooling)<br>- <code>setMinTemperature</code> (desired temperature, e.g., '18.0')<br>- <code>setMaxTemperature</code> (desired temperature, e.g., '25.0')<br>- <code>setEcoTemperature</code> (desired temperature, e.g., '20.0')<br>- <code>setComfTemperature</code> (desired temperature, e.g., '22.5')<br>- <code>setWWColdness</code> (0-255)<br>- <code>setWWPower</code> (0-255)<br>- <code>setWW</code> (16-bit value: <code>0xCCPP</code> where CC=Coldness, PP=Power)<br>- <code>setBass</code> (0-255)<br>- <code>setMid</code> (0-255)<br>- <code>setTreble</code> (0-255)<br>- <code>setStation</code> (favorite station number)<br>- <code>setFreq</code> (frequency value)<br>- <code>removeStation</code> (favorite station number to remove)<br>- <code>setIpRadioPreset</code> (preset command, e.g., 'preset1')<br>- <code>setIpRadioButton</code> (command: 'resume', 'pause', 'next', 'prev', 'mute:1', 'mute:0', 'toggle')<br>- <code>setIpRadioUri</code> (URI/URL string)<br>- <code>setIpRadioSharelink</code> (URI/URL string)<br>- <code>setVerticalSwing</code> (swing value, e.g., 0-100)<br>- <code>setHorizontalSwing</code> (swing value, e.g., 0-100)<br>- <code>setFan</code> (string: 'A' (Auto), 'V' (Very Low), 'L' (Low), 'M' (Medium), 'H' (High), 'T' (Turbo))<br>- <code>setAc</code> (string: 'on' or 'off')<br>- <code>increment</code> (value to increment by, e.g., '10')<br>- <code>decrement</code> (value to decrement by, e.g., '10')<br>- <code>setFakeValue</code> (any value to set state )<br>- <code>setVirtualValue</code> (any value to set state)<br>- <code>setFakeParam2</code> (any value to set secondary state)<br>- <code>setValueDouble</code> (float/double value, e.g., '21.5')<br>- <code>setVirtualTemp</code> (float/double value, e.g., '22.3')<br>- <code>arm</code> (value is PIN)<br>- <code>disarm</code> (value is PIN)<br><code>id_dev*</code> ID of the device<br><code>function*</code> Function to perform on the device<br><code>value*</code> Value to send</dd>
+        <dt>(GET) set/{ID}/setColorW/{color}/{white} <span class="property-type">GET /api/set/{id_dev}/setColorW/{color}/{white}</span></dt>
+        <dd>Function to set RGB color with a white channel<br>Example: <code>/api/set/1/setColorW/65000/0</code><br><code>id_dev*</code> ID of the device<br><code>color*</code> 24 bit value: 0-7 bits (RED), 8-15 (GREEN), 16-23 (BLUE)<br><code>white*</code> White channel value (0-255)</dd>
+        <dt>(GET) set/{ID}/setRollerPos/{pos}/{lammel} <span class="property-type">GET /api/set/{id_dev}/setRollerPos/{pos}/{lammel}</span></dt>
+        <dd>Function to set roller blind position and lammel<br>Example: <code>/api/set/5/setRollerPos/50/50</code><br><code>id_dev*</code> ID of the device<br><code>pos*</code> Position of roller (0-100)<br><code>lammel*</code> Position of lammel (0-100). Pass 0 if not present.</dd>
+        <dt>(GET) set/{ID}/setColors/{r}/{g}/{b}/{w} <span class="property-type">GET /api/set/{id_dev}/setColors/{r}/{g}/{b}/{w}</span></dt>
+        <dd>Function to set individual R, G, B, and W values<br>Example: <code>/api/set/1/setColors/0/0/0/0</code><br><code>id_dev*</code> ID of the device<br><code>r*</code> Red value (0-255)<br><code>g*</code> Green value (0-255)<br><code>b*</code> Blue value (0-255)<br><code>w*</code> White value (0-255)</dd>
+        <dt>(GET) set/{ID}/setSatelOut/{value}/{pin} <span class="property-type">GET /api/set/{id_dev}/setSatelOut/{value}/{pin}</span></dt>
+        <dd>Function to set Satel output with value and PIN<br>Controls a Satel output with a specified value and PIN.<br><code>id_dev*</code> ID of the device<br><code>value*</code> Value to set (0 or 1)<br><code>pin*</code> PIN for authentication</dd>
+        <dt>(GET) set/{ID}/changePin/{oldPin}/{newPin} <span class="property-type">GET /api/set/{id_dev}/changePin/{oldPin}/{newPin}</span></dt>
+        <dd>Function to change device PIN<br>Changes the PIN for a specific device.<br><code>id_dev*</code> ID of the device<br><code>oldPin*</code> Current PIN<br><code>newPin*</code> New PIN</dd>
+        <dt>(GET) set/{ID}/setWW/{value}/{time} <span class="property-type">GET /api/set/{id_dev}/setWW/{value}/{time}</span></dt>
+        <dd>Function to set Warm White (WW) value with time<br>Sets the Warm White (WW) value for a device with a specified duration.<br><code>id_dev*</code> ID of the device<br><code>value*</code> WW value (power and coldness combined, e.g., 0xCCPP where CC is coldness and PP is power)<br><code>time*</code> The time for which the value is to be set (x 10ms)</dd>
+        <dt>(GET) set/{ID}/{function}/{value}/{time} <span class="property-type">GET /api/set/{id_dev}/{function}/{value}/{time}</span></dt>
+        <dd>Function to control device with value and time<br>Example: <code>/api/set/1/setValue/1/100</code>.<br>List of functions:<br>- <code>setValue</code> (value 0-255, time x 10ms. e.g., 100 = 1 second)<br><code>id_dev*</code> ID of the device<br><code>function*</code> Function to perform on the device<br><code>value*</code> Value to send<br><code>time*</code> The time for which the value is to be set (x 10ms)</dd>
+        <dt>(GET) callNotification/{ID} <span class="property-type">GET /api/callNotification/{id_dev}</span></dt>
+        <dd>Function to send notification for all users<br>The device endpoint allows sending a notification related to a specific device.<br><code>id_dev*</code> ID of the device that is calling</dd>
+        <dt>(GET) pushNotification/{message} <span class="property-type">GET /api/pushNotification/{message}</span></dt>
+        <dd>Function to send notification for all users<br>Sends a push notification to all users.<br><code>message*</code> Message to send</dd>
+        <dt>(GET) pushNotification/{message}/{user} <span class="property-type">GET /api/pushNotification/{message}/{user}</span></dt>
+        <dd>Function to send notification for specified user<br>Sends a push notification to a specified user.<br><code>message*</code> Message to send<br><code>user*</code> User to send message</dd>
+        <dt>(GET) setEvent/{eventNum} <span class="property-type">GET /api/setEvent/{eventNum}</span></dt>
+        <dd>Function sending event<br>Allows sending any event into the CAN network.<br><code>eventNum*</code> Number of event</dd>
+        <dt>(GET) set/setLcdUp/{text} <span class="property-type">GET /api/set/setLcdUp/{text}</span></dt>
+        <dd>Send text to LCD panel (upper field)<br>Sends text to the LCD panel's upper description field. Example: <code>/api/set/setLcdUp/Currency</code><br><code>text*</code> Message to send to LCD panel</dd>
+        <dt>(GET) set/setLcdDown/{text} <span class="property-type">GET /api/set/setLcdDown/{text}</span></dt>
+        <dd>Send digits to LCD panel (lower field)<br>Sends digits (and comma) to the LCD panel's lower value field. Example: <code>/api/set/setLcdDown/4,25</code><br><code>text*</code> Message to send to LCD panel</dd>
+        <dt>(GET) setWatterBudget/{value} <span class="property-type">GET /api/setWatterBudget/{value}</span></dt>
+        <dd>Set the water budget<br>Sets the water budget to a specified value (between 10 and 300).<br><code>value*</code> Water budget value (10-300)</dd>
+    </dl>
+    <h4>Scenes</h4>
+    <dl class="message-properties">
+        <dt>(GET) scenes <span class="property-type">GET /api/json/scenes</span></dt>
+        <dd>Function to return all scenes<br>The Scenes endpoint returns information about the Ampio Smart Home created scenes. The response includes the name and other details about scenes.</dd>
+        <dt>(GET) scenes (xml) <span class="property-type">GET /api/xml/scenes</span></dt>
+        <dd>Function to return all scenes<br>The Scenes endpoint returns information about the Ampio Smart Home created scenes. The response includes the name and other details about scenes.</dd>
+        <dt>(GET) run/scene/{ID} <span class="property-type">GET /api/run/scene/{scene_id}</span></dt>
+        <dd>Function to run scene with provided id.<br>The function allows running the selected scene.<br><code>scene_id*</code> ID of scene</dd>
+        <dt>(GET) undo/scene/{ID} <span class="property-type">GET /api/undo/scene/{scene_id}</span></dt>
+        <dd>Function to undo scene with provided id.<br>The function allows undoing the selected scene.<br><code>scene_id*</code> ID of scene</dd>
+        <dt>(GET) off/scene/{ID} <span class="property-type">GET /api/off/scene/{scene_id}</span></dt>
+        <dd>Function to turn off scene with provided id.<br>The function allows turning off the selected scene.<br><code>scene_id*</code> ID of scene</dd>
+    </dl>
+    <!-- operations:end -->
+</script>

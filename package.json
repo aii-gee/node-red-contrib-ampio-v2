@@ -30,6 +30,7 @@
       "ampiov2lcd": "ampioin/lcd.js",
       "ampiov2events": "ampioin/events.js",
       "ampiov2audit": "ampioin/audit.js",
+      "ampiov2api": "ampioin/api.js",
       "ampiov2config": "ampioin/ampio-config.js"
     }
   },

@@ -1,0 +1,2411 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "Ampio API",
+    "description": "Move your app forward with the Ampio Smart Home API. This API provides endpoints to manage and control smart home devices, groups, and scenes.",
+    "version": "1.0.4"
+  },
+  "servers": [
+    {
+      "url": "http://{server_ip}:{port}",
+      "description": "Local or Demo Ampio Server"
+    }
+  ],
+  "security": [
+    {
+      "basicAuth": []
+    }
+  ],
+  "paths": {
+    "/api/json/groups": {
+      "get": {
+        "tags": [
+          "Groups"
+        ],
+        "summary": "List of groups",
+        "description": "The Groups endpoint returns information about the Ampio Smart Home groups. The response includes the name and other details about each group.",
+        "responses": {
+          "200": {
+            "description": "An array of groups",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Group"
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Unexpected error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/json/group_devices": {
+      "get": {
+        "tags": [
+          "Groups"
+        ],
+        "summary": "List of all group-device relations",
+        "description": "Returns all relations mapping devices to their groups.",
+        "responses": {
+          "200": {
+            "description": "An array of group-device relations",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Grouping"
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Unexpected error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/json/group_devices/{id_group}": {
+      "get": {
+        "tags": [
+          "Groups"
+        ],
+        "summary": "List of devices for a selected group id",
+        "description": "Returns information about devices belonging to a specific group.",
+        "parameters": [
+          {
+            "name": "id_group",
+            "in": "path",
+            "description": "ID of the group",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "An array of devices in the group",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Device"
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Unexpected error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/xml/groups": {
+      "get": {
+        "tags": [
+          "Groups"
+        ],
+        "summary": "List of groups",
+        "description": "The Groups endpoint returns information about the Ampio Smart Home groups. The response includes the name and other details about each group.",
+        "responses": {
+          "200": {
+            "description": "An array of groups",
+            "content": {
+              "application/xml": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Group"
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Unexpected error",
+            "content": {
+              "application/xml": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/xml/group_devices": {
+      "get": {
+        "tags": [
+          "Groups"
+        ],
+        "summary": "List of all group-device relations",
+        "description": "Returns all relations mapping devices to their groups.",
+        "responses": {
+          "200": {
+            "description": "An array of group-device relations",
+            "content": {
+              "application/xml": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Grouping"
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Unexpected error",
+            "content": {
+              "application/xml": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/xml/group_devices/{id_group}": {
+      "get": {
+        "tags": [
+          "Groups"
+        ],
+        "summary": "List of devices for a selected group id",
+        "description": "Returns information about devices belonging to a specific group.",
+        "parameters": [
+          {
+            "name": "id_group",
+            "in": "path",
+            "description": "ID of the group",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "An array of devices in the group",
+            "content": {
+              "application/xml": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Device"
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Unexpected error",
+            "content": {
+              "application/xml": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/json/devices": {
+      "get": {
+        "tags": [
+          "Devices"
+        ],
+        "summary": "List of devices",
+        "description": "The Devices endpoint returns information about the Ampio Smart Home connected devices. The response includes the name and other details about each device.",
+        "responses": {
+          "200": {
+            "description": "An array of devices",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Device"
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Unexpected error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/json/devices/{dev_type}": {
+      "get": {
+        "tags": [
+          "Devices"
+        ],
+        "summary": "List of devices with specified type",
+        "description": "The Devices endpoint returns information about connected devices with a specified type, for example: `/api/json/devices/led`.",
+        "parameters": [
+          {
+            "name": "dev_type",
+            "in": "path",
+            "description": "Type of device to filter by",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "led",
+                "rgb",
+                "wej",
+                "temp",
+                "reg",
+                "przekaznik",
+                "roleta",
+                "flaga",
+                "satel_wej",
+                "satel_alarm",
+                "moc_ciagla"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "An array of devices",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Device"
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Unexpected error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/json/devs_detail": {
+      "get": {
+        "tags": [
+          "Devices"
+        ],
+        "summary": "List of devices with details",
+        "description": "The Devices endpoint returns information about the Ampio Smart Home connected devices with details. The response includes the name and other details about each device.",
+        "responses": {
+          "200": {
+            "description": "An array of devices",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Device"
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Unexpected error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/xml/devices": {
+      "get": {
+        "tags": [
+          "Devices"
+        ],
+        "summary": "List of devices",
+        "description": "The Devices endpoint returns information about the Ampio Smart Home connected devices. The response includes the name and other details about each device.",
+        "responses": {
+          "200": {
+            "description": "An array of devices",
+            "content": {
+              "application/xml": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Device"
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Unexpected error",
+            "content": {
+              "application/xml": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/xml/devices/{dev_type}": {
+      "get": {
+        "tags": [
+          "Devices"
+        ],
+        "summary": "List of devices with specified type",
+        "description": "The Devices endpoint returns information about connected devices with a specified type, for example: `/api/xml/devices/led`.",
+        "parameters": [
+          {
+            "name": "dev_type",
+            "in": "path",
+            "description": "Type of device to filter by",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "led",
+                "rgb",
+                "wej",
+                "temp",
+                "reg",
+                "przekaznik",
+                "roleta",
+                "flaga",
+                "satel_wej",
+                "satel_alarm",
+                "moc_ciagla"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "An array of devices",
+            "content": {
+              "application/xml": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Device"
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Unexpected error",
+            "content": {
+              "application/xml": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/xml/devs_detail": {
+      "get": {
+        "tags": [
+          "Devices"
+        ],
+        "summary": "List of devices with details",
+        "description": "The Devices endpoint returns information about the Ampio Smart Home connected devices with details. The response includes the name and other details about each device.",
+        "responses": {
+          "200": {
+            "description": "An array of devices",
+            "content": {
+              "application/xml": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Device"
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Unexpected error",
+            "content": {
+              "application/xml": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/json/device/{id_dev}/state": {
+      "get": {
+        "tags": [
+          "State"
+        ],
+        "summary": "State of device with id (Old)",
+        "description": "Returns information about the state of selected device. (DEPRECATED: Use `state2` for new applications).",
+        "parameters": [
+          {
+            "name": "id_dev",
+            "in": "path",
+            "description": "ID of the device",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "State of device",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Results"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Unexpected error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/json/device/{id_dev}/state2": {
+      "get": {
+        "tags": [
+          "State"
+        ],
+        "summary": "State of device with id",
+        "description": "Returns information about the state of selected device in the new format.",
+        "parameters": [
+          {
+            "name": "id_dev",
+            "in": "path",
+            "description": "ID of the device",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "State of device",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Results"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Unexpected error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/json/logbook/{type}/{objectType}/{fromTime}/{toTime}/{objectId}/{requestSize}/{requestOffset}": {
+      "get": {
+        "tags": [
+          "State"
+        ],
+        "summary": "Get logbook data",
+        "description": "Return logbook with given type and other parameters",
+        "parameters": [
+          {
+            "name": "type",
+            "in": "path",
+            "description": "Type of logbook data: 0-today, 1-last 24h, 2-last 7d, 3-last month, 4-last 3m, 5-last year, 6-fromTime to toTime",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 0
+            }
+          },
+          {
+            "name": "objectType",
+            "in": "path",
+            "description": "Type of the object: 0-all, 43-events",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 0
+            }
+          },
+          {
+            "name": "fromTime",
+            "in": "path",
+            "description": "Start time in Unix epoch format",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "default": 0
+            }
+          },
+          {
+            "name": "toTime",
+            "in": "path",
+            "description": "End time in Unix epoch format",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "default": 0
+            }
+          },
+          {
+            "name": "objectId",
+            "in": "path",
+            "description": "ID of the object",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 0
+            }
+          },
+          {
+            "name": "requestSize",
+            "in": "path",
+            "description": "Size of the request",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 0
+            }
+          },
+          {
+            "name": "requestOffset",
+            "in": "path",
+            "description": "Offset of the request",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Logbook data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Results"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Unexpected error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/json/device/{id_dev}/signal": {
+      "get": {
+        "tags": [
+          "State"
+        ],
+        "summary": "Signal of RF device with id",
+        "description": "Returns information about the signal of selected RF device.",
+        "parameters": [
+          {
+            "name": "id_dev",
+            "in": "path",
+            "description": "ID of the device",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "State of device",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Results"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Unexpected error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/json/device/{id_dev}/getsignal": {
+      "get": {
+        "tags": [
+          "State"
+        ],
+        "summary": "Request signal update for RF device",
+        "description": "The request gets information about the signal of selected RF device. To check the value, call the `signal` endpoint after this.",
+        "parameters": [
+          {
+            "name": "id_dev",
+            "in": "path",
+            "description": "ID of the device",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Unexpected error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/xml/device/{id_dev}/state": {
+      "get": {
+        "tags": [
+          "State"
+        ],
+        "summary": "State of device with id (Old)",
+        "description": "Returns information about the state of selected device. (DEPRECATED: Use `state2` for new applications).",
+        "parameters": [
+          {
+            "name": "id_dev",
+            "in": "path",
+            "description": "ID of the device",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "State of device",
+            "content": {
+              "application/xml": {
+                "schema": {
+                  "$ref": "#/components/schemas/Results"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Unexpected error",
+            "content": {
+              "application/xml": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/xml/device/{id_dev}/state2": {
+      "get": {
+        "tags": [
+          "State"
+        ],
+        "summary": "State of device with id",
+        "description": "Returns information about the state of selected device in the new format.",
+        "parameters": [
+          {
+            "name": "id_dev",
+            "in": "path",
+            "description": "ID of the device",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "State of device",
+            "content": {
+              "application/xml": {
+                "schema": {
+                  "$ref": "#/components/schemas/Results"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Unexpected error",
+            "content": {
+              "application/xml": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/xml/device/{id_dev}/signal": {
+      "get": {
+        "tags": [
+          "State"
+        ],
+        "summary": "Signal of RF device with id",
+        "description": "Returns information about the signal of selected RF device.",
+        "parameters": [
+          {
+            "name": "id_dev",
+            "in": "path",
+            "description": "ID of the device",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "State of device",
+            "content": {
+              "application/xml": {
+                "schema": {
+                  "$ref": "#/components/schemas/Results"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Unexpected error",
+            "content": {
+              "application/xml": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/xml/device/{id_dev}/getsignal": {
+      "get": {
+        "tags": [
+          "State"
+        ],
+        "summary": "Request signal update for RF device",
+        "description": "The request gets information about the signal of selected RF device. To check the value, call the `signal` endpoint after this.",
+        "parameters": [
+          {
+            "name": "id_dev",
+            "in": "path",
+            "description": "ID of the device",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response OK",
+            "content": {
+              "application/xml": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Unexpected error",
+            "content": {
+              "application/xml": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/set/{id_dev}/{function}": {
+      "get": {
+        "tags": [
+          "Control"
+        ],
+        "summary": "Function to control device (no value)",
+        "description": "Control a device with a simple function that does not require a value. Example: `/api/set/1/turnOn`.",
+        "parameters": [
+          {
+            "name": "id_dev",
+            "in": "path",
+            "description": "ID of the device",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "function",
+            "in": "path",
+            "description": "Function to perform on the device",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "turnOn",
+                "turnOff",
+                "open",
+                "close",
+                "stop",
+                "switch",
+                "setFlux",
+                "captureImage"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Unexpected error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/set/{id_dev}/{function}/{value}": {
+      "get": {
+        "tags": [
+          "Control"
+        ],
+        "summary": "Function to control device with one value",
+        "description": "Control a device with a function that requires a single value. Example: `/api/set/1/setValue/200`.<br>List of functions:<br>\n- `setValue` (0-255)<br>\n- `setColor` (24-bit integer: `0xBBGGRR`)<br>\n- `setTemperature` (desired temperature, e.g., '21.5')<br>\n- `setVolume` (0-100 or 0-255, depending on device type)<br>\n- `setInput` (input index or name, e.g., '1', '40', 'line-in', 'hdmi1')<br>\n- `setSeek` (value 0-255)<br>\n- `setText` (string value)<br>\n- `setHeatingMode` (string: 'A' (Auto), 'S' (Standby), 'M' (Manual), 'H' (Holiday) for heating; or 'auto', 'cool', 'heat', 'fan' for AC)<br>\n- `setHeatingType` (0 for heating, 1 for cooling)<br>\n- `setMinTemperature` (desired temperature, e.g., '18.0')<br>\n- `setMaxTemperature` (desired temperature, e.g., '25.0')<br>\n- `setEcoTemperature` (desired temperature, e.g., '20.0')<br>\n- `setComfTemperature` (desired temperature, e.g., '22.5')<br>\n- `setWWColdness` (0-255)<br>\n- `setWWPower` (0-255)<br>\n- `setWW` (16-bit value: `0xCCPP` where CC=Coldness, PP=Power)<br>\n- `setBass` (0-255)<br>\n- `setMid` (0-255)<br>\n- `setTreble` (0-255)<br>\n- `setStation` (favorite station number)<br>\n- `setFreq` (frequency value)<br>\n- `removeStation` (favorite station number to remove)<br>\n- `setIpRadioPreset` (preset command, e.g., 'preset1')<br>\n- `setIpRadioButton` (command: 'resume', 'pause', 'next', 'prev', 'mute:1', 'mute:0', 'toggle')<br>\n- `setIpRadioUri` (URI/URL string)<br>\n- `setIpRadioSharelink` (URI/URL string)<br>\n- `setVerticalSwing` (swing value, e.g., 0-100)<br>\n- `setHorizontalSwing` (swing value, e.g., 0-100)<br>\n- `setFan` (string: 'A' (Auto), 'V' (Very Low), 'L' (Low), 'M' (Medium), 'H' (High), 'T' (Turbo))<br>\n- `setAc` (string: 'on' or 'off')<br>\n- `increment` (value to increment by, e.g., '10')<br>\n- `decrement` (value to decrement by, e.g., '10')<br>\n- `setFakeValue` (any value to set state )<br>\n- `setVirtualValue` (any value to set state)<br>\n- `setFakeParam2` (any value to set secondary state)<br>\n- `setValueDouble` (float/double value, e.g., '21.5')<br>\n- `setVirtualTemp` (float/double value, e.g., '22.3')<br>\n- `arm` (value is PIN)<br>\n- `disarm` (value is PIN)",
+        "parameters": [
+          {
+            "name": "id_dev",
+            "in": "path",
+            "description": "ID of the device",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "function",
+            "in": "path",
+            "description": "Function to perform on the device",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "setValue",
+                "setColor",
+                "setTemperature",
+                "setVolume",
+                "setInput",
+                "setSeek",
+                "setText",
+                "setHeatingMode",
+                "setHeatingType",
+                "setMinTemperature",
+                "setMaxTemperature",
+                "setEcoTemperature",
+                "setComfTemperature",
+                "setWWColdness",
+                "setWWPower",
+                "setWW",
+                "setBass",
+                "setMid",
+                "setTreble",
+                "setStation",
+                "setFreq",
+                "removeStation",
+                "setIpRadioPreset",
+                "setIpRadioButton",
+                "setIpRadioUri",
+                "setIpRadioSharelink",
+                "setVerticalSwing",
+                "setHorizontalSwing",
+                "setFan",
+                "setAc",
+                "increment",
+                "decrement",
+                "setFakeValue",
+                "setVirtualValue",
+                "setFakeParam2",
+                "setValueDouble",
+                "setVirtualTemp",
+                "setVirtualValue",
+                "arm",
+                "disarm"
+              ]
+            }
+          },
+          {
+            "name": "value",
+            "in": "path",
+            "description": "Value to send",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Unexpected error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/set/{id_dev}/setColorW/{color}/{white}": {
+      "get": {
+        "tags": [
+          "Control"
+        ],
+        "summary": "Function to set RGB color with a white channel",
+        "description": "Example: `/api/set/1/setColorW/65000/0`",
+        "parameters": [
+          {
+            "name": "id_dev",
+            "in": "path",
+            "description": "ID of the device",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "color",
+            "in": "path",
+            "description": "24 bit value: 0-7 bits (RED), 8-15 (GREEN), 16-23 (BLUE)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "white",
+            "in": "path",
+            "description": "White channel value (0-255)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Unexpected error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/set/{id_dev}/setRollerPos/{pos}/{lammel}": {
+      "get": {
+        "tags": [
+          "Control"
+        ],
+        "summary": "Function to set roller blind position and lammel",
+        "description": "Example: `/api/set/5/setRollerPos/50/50`",
+        "parameters": [
+          {
+            "name": "id_dev",
+            "in": "path",
+            "description": "ID of the device",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "pos",
+            "in": "path",
+            "description": "Position of roller (0-100)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "lammel",
+            "in": "path",
+            "description": "Position of lammel (0-100). Pass 0 if not present.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Unexpected error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/set/{id_dev}/setColors/{r}/{g}/{b}/{w}": {
+      "get": {
+        "tags": [
+          "Control"
+        ],
+        "summary": "Function to set individual R, G, B, and W values",
+        "description": "Example: `/api/set/1/setColors/0/0/0/0`",
+        "parameters": [
+          {
+            "name": "id_dev",
+            "in": "path",
+            "description": "ID of the device",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "r",
+            "in": "path",
+            "description": "Red value (0-255)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "g",
+            "in": "path",
+            "description": "Green value (0-255)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "b",
+            "in": "path",
+            "description": "Blue value (0-255)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "w",
+            "in": "path",
+            "description": "White value (0-255)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Unexpected error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/set/{id_dev}/setSatelOut/{value}/{pin}": {
+      "get": {
+        "tags": [
+          "Control"
+        ],
+        "summary": "Function to set Satel output with value and PIN",
+        "description": "Controls a Satel output with a specified value and PIN.",
+        "parameters": [
+          {
+            "name": "id_dev",
+            "in": "path",
+            "description": "ID of the device",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "value",
+            "in": "path",
+            "description": "Value to set (0 or 1)",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "pin",
+            "in": "path",
+            "description": "PIN for authentication",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Unexpected error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/set/{id_dev}/changePin/{oldPin}/{newPin}": {
+      "get": {
+        "tags": [
+          "Control"
+        ],
+        "summary": "Function to change device PIN",
+        "description": "Changes the PIN for a specific device.",
+        "parameters": [
+          {
+            "name": "id_dev",
+            "in": "path",
+            "description": "ID of the device",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "oldPin",
+            "in": "path",
+            "description": "Current PIN",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "newPin",
+            "in": "path",
+            "description": "New PIN",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Unexpected error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/set/{id_dev}/setWW/{value}/{time}": {
+      "get": {
+        "tags": [
+          "Control"
+        ],
+        "summary": "Function to set Warm White (WW) value with time",
+        "description": "Sets the Warm White (WW) value for a device with a specified duration.",
+        "parameters": [
+          {
+            "name": "id_dev",
+            "in": "path",
+            "description": "ID of the device",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "value",
+            "in": "path",
+            "description": "WW value (power and coldness combined, e.g., 0xCCPP where CC is coldness and PP is power)",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "time",
+            "in": "path",
+            "description": "The time for which the value is to be set (x 10ms)",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Unexpected error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/set/{id_dev}/{function}/{value}/{time}": {
+      "get": {
+        "tags": [
+          "Control"
+        ],
+        "summary": "Function to control device with value and time",
+        "description": "Example: `/api/set/1/setValue/1/100`.<br>List of functions:<br>\n- `setValue` (value 0-255, time x 10ms. e.g., 100 = 1 second)",
+        "parameters": [
+          {
+            "name": "id_dev",
+            "in": "path",
+            "description": "ID of the device",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "function",
+            "in": "path",
+            "description": "Function to perform on the device",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "setValue"
+              ]
+            }
+          },
+          {
+            "name": "value",
+            "in": "path",
+            "description": "Value to send",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "time",
+            "in": "path",
+            "description": "The time for which the value is to be set (x 10ms)",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Unexpected error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/callNotification/{id_dev}": {
+      "get": {
+        "tags": [
+          "Control"
+        ],
+        "summary": "Function to send notification for all users",
+        "description": "The device endpoint allows sending a notification related to a specific device.",
+        "parameters": [
+          {
+            "name": "id_dev",
+            "in": "path",
+            "description": "ID of the device that is calling",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Unexpected error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/pushNotification/{message}": {
+      "get": {
+        "tags": [
+          "Control"
+        ],
+        "summary": "Function to send notification for all users",
+        "description": "Sends a push notification to all users.",
+        "parameters": [
+          {
+            "name": "message",
+            "in": "path",
+            "description": "Message to send",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Unexpected error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/pushNotification/{message}/{user}": {
+      "get": {
+        "tags": [
+          "Control"
+        ],
+        "summary": "Function to send notification for specified user",
+        "description": "Sends a push notification to a specified user.",
+        "parameters": [
+          {
+            "name": "message",
+            "in": "path",
+            "description": "Message to send",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "user",
+            "in": "path",
+            "description": "User to send message",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Unexpected error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/setEvent/{eventNum}": {
+      "get": {
+        "tags": [
+          "Control"
+        ],
+        "summary": "Function sending event",
+        "description": "Allows sending any event into the CAN network.",
+        "parameters": [
+          {
+            "name": "eventNum",
+            "in": "path",
+            "description": "Number of event",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Unexpected error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/set/setLcdUp/{text}": {
+      "get": {
+        "tags": [
+          "Control"
+        ],
+        "summary": "Send text to LCD panel (upper field)",
+        "description": "Sends text to the LCD panel's upper description field. Example: `/api/set/setLcdUp/Currency`",
+        "parameters": [
+          {
+            "name": "text",
+            "in": "path",
+            "description": "Message to send to LCD panel",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Unexpected error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/set/setLcdDown/{text}": {
+      "get": {
+        "tags": [
+          "Control"
+        ],
+        "summary": "Send digits to LCD panel (lower field)",
+        "description": "Sends digits (and comma) to the LCD panel's lower value field. Example: `/api/set/setLcdDown/4,25`",
+        "parameters": [
+          {
+            "name": "text",
+            "in": "path",
+            "description": "Message to send to LCD panel",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Unexpected error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/setWatterBudget/{value}": {
+      "get": {
+        "tags": [
+          "Control"
+        ],
+        "summary": "Set the water budget",
+        "description": "Sets the water budget to a specified value (between 10 and 300).",
+        "parameters": [
+          {
+            "name": "value",
+            "in": "path",
+            "description": "Water budget value (10-300)",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Unexpected error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/json/scenes": {
+      "get": {
+        "tags": [
+          "Scenes"
+        ],
+        "summary": "Function to return all scenes",
+        "description": "The Scenes endpoint returns information about the Ampio Smart Home created scenes. The response includes the name and other details about scenes.",
+        "responses": {
+          "200": {
+            "description": "Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Unexpected error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/xml/scenes": {
+      "get": {
+        "tags": [
+          "Scenes"
+        ],
+        "summary": "Function to return all scenes",
+        "description": "The Scenes endpoint returns information about the Ampio Smart Home created scenes. The response includes the name and other details about scenes.",
+        "responses": {
+          "200": {
+            "description": "Response",
+            "content": {
+              "application/xml": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Unexpected error",
+            "content": {
+              "application/xml": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/run/scene/{scene_id}": {
+      "get": {
+        "tags": [
+          "Scenes"
+        ],
+        "summary": "Function to run scene with provided id.",
+        "description": "The function allows running the selected scene.",
+        "parameters": [
+          {
+            "name": "scene_id",
+            "in": "path",
+            "description": "ID of scene",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Unexpected error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/undo/scene/{scene_id}": {
+      "get": {
+        "tags": [
+          "Scenes"
+        ],
+        "summary": "Function to undo scene with provided id.",
+        "description": "The function allows undoing the selected scene.",
+        "parameters": [
+          {
+            "name": "scene_id",
+            "in": "path",
+            "description": "ID of scene",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Unexpected error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/off/scene/{scene_id}": {
+      "get": {
+        "tags": [
+          "Scenes"
+        ],
+        "summary": "Function to turn off scene with provided id.",
+        "description": "The function allows turning off the selected scene.",
+        "parameters": [
+          {
+            "name": "scene_id",
+            "in": "path",
+            "description": "ID of scene",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Unexpected error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/json/device/{object_id}/addPinList": {
+      "post": {
+        "tags": [
+          "Devices"
+        ],
+        "summary": "Add a list of pins or cards for a device",
+        "description": "This endpoint allows you to add a list of pins or cards to a specific device in the Ampio Smart Home system.",
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "description": "The ID of the object (device)",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/PinListItem"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Response after adding pin/card list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Unexpected error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/json/device/{object_id}/savePinList": {
+      "post": {
+        "tags": [
+          "Devices"
+        ],
+        "summary": "Save a list of pins or cards for a device",
+        "description": "This endpoint allows you to save a list of pins or cards to a specific device in the Ampio Smart Home system. (This overwrites the existing list)",
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "description": "The ID of the object (device)",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/PinListItem"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Response after adding pin/card list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Unexpected error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Group": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "description": "Unique identifier representing a specific group."
+          },
+          "id_rodzica": {
+            "type": "integer",
+            "description": "Unique identifier representing a specific group parent ( another group)."
+          },
+          "lp": {
+            "type": "integer",
+            "description": "Place in the queue"
+          },
+          "opis_menu": {
+            "type": "string",
+            "description": "Name of group."
+          },
+          "opis_rozwiniety": {
+            "type": "string",
+            "description": "Extended name of device."
+          },
+          "ikona_menu": {
+            "type": "string",
+            "description": "Base64 with group icon ( form XML it's string byte array)"
+          }
+        }
+      },
+      "PinListItem": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "integer",
+            "enum": [
+              1,
+              2,
+              3
+            ],
+            "description": "1 - always, 2 - from_to, 3 - by schedule"
+          },
+          "security": {
+            "type": "integer",
+            "enum": [
+              1,
+              2
+            ],
+            "description": "1 - pin, 2 - card"
+          },
+          "eventNum": {
+            "type": "integer",
+            "description": "Event number to send to Ampio Network"
+          },
+          "pin": {
+            "type": "string",
+            "description": "PIN or card number",
+            "default": "1234"
+          },
+          "card": {
+            "type": "integer",
+            "description": "Card identifier"
+          },
+          "schedule": {
+            "type": "object",
+            "properties": {
+              "s": {
+                "type": "string",
+                "description": "Start time (for type 3 schedule)",
+                "default": "08:00",
+                "nullable": true
+              },
+              "e": {
+                "type": "string",
+                "description": "End time (for type 3 schedule)",
+                "default": "18:00",
+                "nullable": true
+              },
+              "epochS": {
+                "type": "integer",
+                "format": "int64",
+                "description": "Epoch start (for type 2 schedule)",
+                "default": 1747042238,
+                "nullable": true
+              },
+              "epochE": {
+                "type": "integer",
+                "format": "int64",
+                "description": "Epoch end (for type 2 schedule)",
+                "default": 1747042238,
+                "nullable": true
+              },
+              "dayMask": {
+                "type": "integer",
+                "description": "Day mask for schedule (for type 3)",
+                "default": 127,
+                "nullable": true
+              }
+            },
+            "required": [
+              "s",
+              "e"
+            ]
+          }
+        }
+      },
+      "Grouping": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "description": "Unique identifier representing a specific relation."
+          },
+          "id_grupy": {
+            "type": "integer",
+            "description": "Unique identifier representing a group parent where devcies belonging"
+          },
+          "id_obiektu": {
+            "type": "integer",
+            "description": "Unique identifier of devices"
+          },
+          "lp": {
+            "type": "integer",
+            "description": "Place in the queue"
+          },
+          "x": {
+            "type": "integer",
+            "description": "If not 0 or -1, place on scetch"
+          },
+          "y": {
+            "type": "integer",
+            "description": "If not 0 or -1, place on scetch"
+          },
+          "width": {
+            "type": "integer",
+            "description": "If not 0 or -1, width on scetch"
+          },
+          "height": {
+            "type": "integer",
+            "description": "If not 0 or -1, height on scetch"
+          }
+        }
+      },
+      "Device": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "description": "Unique identifier representing a specific device."
+          },
+          "typ_komponentu": {
+            "type": "string",
+            "description": "Type of device."
+          },
+          "opis_menu": {
+            "type": "string",
+            "description": "Name of device."
+          },
+          "opis_rozwiniety": {
+            "type": "string",
+            "description": "Extended name of device."
+          },
+          "ikona_0": {
+            "type": "string",
+            "description": "Base64 with device icon for disabled state ( form XML it's string byte array)"
+          },
+          "ikona_1": {
+            "type": "string",
+            "description": "Base64 with device icon for enabled state ( form XML it's string byte array)"
+          },
+          "min": {
+            "type": "integer",
+            "description": "Minimal value of temperature controller (unused in other objects)"
+          },
+          "max": {
+            "type": "integer",
+            "description": "Maximal value of temperature controller (unused in other objects)"
+          },
+          "url": {
+            "type": "string",
+            "description": "Url of device ( usually entity like celcius degres )"
+          },
+          "state": {
+            "type": "string",
+            "description": "State of device."
+          }
+        }
+      },
+      "Response": {
+        "type": "object",
+        "properties": {
+          "Response": {
+            "type": "string",
+            "description": "Response OK if correct function."
+          }
+        }
+      },
+      "Results": {
+        "type": "object",
+        "properties": {
+          "state": {
+            "type": "string",
+            "description": "State of selected device."
+          }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "Response": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "basicAuth": {
+        "type": "http",
+        "scheme": "basic"
+      }
+    }
+  }
+}
